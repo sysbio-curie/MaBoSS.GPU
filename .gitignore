@@ -2,3 +2,6 @@ venv
 .vs
 .vscode
 build
+gen/__pycache__
+gen/parser.out
+gen/parsetab.py
