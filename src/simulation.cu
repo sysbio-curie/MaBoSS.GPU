@@ -98,7 +98,7 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 	times[id] = time;
 	used_trajectory_size[id] = step;
 
-    if (step < trajectory_limit)
+    if (step == trajectory_limit)
         *finished = false;
 }
 
