@@ -5,3 +5,4 @@ build
 gen/__pycache__
 gen/parser.out
 gen/parsetab.py
+src/generated.cu
