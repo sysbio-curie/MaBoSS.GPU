@@ -26,7 +26,7 @@ SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
 
 # Target MaBoSSGCore
 file(GLOB_RECURSE src_files "src/*")
-list(FILTER src_files EXCLUDE REGEX ".*main\\.cpp")
+list(FILTER src_files EXCLUDE REGEX ".*main\\..*")
 
 add_library(MaBoSSGCore ${src_files})
 
@@ -37,7 +37,7 @@ file(GLOB_RECURSE test_files "test/*")
 add_executable(unit_MaBoSSG ${test_files})
 
 # Target MaBoSSG
-add_executable(MaBoSSG src/main.cpp)
+add_executable(MaBoSSG src/main)
 target_link_libraries(MaBoSSG MaBoSSGCore)
 
 target_link_libraries(unit_MaBoSSG PRIVATE
