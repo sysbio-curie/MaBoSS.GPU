@@ -21,7 +21,7 @@ int main()
     int trajectories = 1'000'000;
     size_t max_traj_len = 100;
 
-    float max_time = 10.f;
+    float max_time = 100.f;
 
     size_t* d_states;
     float* d_times;
