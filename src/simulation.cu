@@ -2,9 +2,10 @@
 #include <device_launch_parameters.h>
 
 #include "simulation.h"
-#include "transition_rates.cuh"
 
-#include "generated.cu.g"
+#include "transition_rates.cu.generated"
+
+__device__ void compute_transition_rates(float* __restrict__ transition_rates, size_t state);
 
 template <size_t states_count>
 __device__ int select_flip_bit(const float* __restrict__ transition_rates, size_t state, float total_rate,

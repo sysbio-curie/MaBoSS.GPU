@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include <thrust/sort.h>
+#include <thrust/execution_policy.h>
 
 #include "simulation.h"
 
@@ -55,7 +56,6 @@ int main()
 	{
 		run_simulate(max_time, trajectories, d_states, d_times, d_rands, d_traj_states, d_traj_times, max_traj_len,
 					 d_traj_lengths, d_finished);
-
 
 		bool finished;
 		CUDA_CHECK(cudaMemcpy(&finished, d_finished, sizeof(bool), cudaMemcpyDeviceToHost));
