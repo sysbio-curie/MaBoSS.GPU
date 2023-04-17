@@ -66,7 +66,7 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 
 		for (size_t i = 0; i < res_size; ++i)
 		{
-			probs[window_idx][states[i]] += times[i];
+			probs[window_idx][states[i]] += times[i] - (cumul_time - window_size);
 		}
 	}
 }
@@ -130,7 +130,7 @@ int main()
 			std::cout << "window " << i << std::endl;
 			for (auto& [state, time] : probs[i])
 			{
-				std::cout << state << " " << time << std::endl;
+				std::cout << state << " " << time / (trajectories * window_size) << std::endl;
 			}
 		}
 
