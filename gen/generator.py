@@ -9,8 +9,28 @@ from bnd_types import *
 import sys
 
 
-def generate_header(nodes):
-    return f'constexpr int states_count = {len(nodes)};\n'
+def get_internals_mask(nodes, cfg):
+    internals = []
+
+    for decl in cfg:
+        if type(decl) == AttrDeclaration:
+            # TODO here we expect that is_internal expression is a constant
+            if decl.attr == 'is_internal' and decl.expr.evaluate({}) == True:
+                internals.append(decl.name)
+
+    mask = 0
+
+    for i, node in enumerate(nodes):
+        if node.name in internals:
+            mask |= (1 << i)
+
+    return mask
+
+
+def generate_header(nodes, cfg):
+    return f'''constexpr int states_count = {len(nodes)};
+constexpr size_t internals_mask = {get_internals_mask(nodes, cfg)};
+'''
 
 
 def generate_aggregate_function(nodes):
@@ -68,7 +88,7 @@ def generate_kernel(bnd_stream, cfg_stream, out_file):
     f = open(out_file, "w")
 
     # generate header
-    f.write(generate_header(nodes))
+    f.write(generate_header(nodes, cfg_program))
 
     # generate transition functions
     for node in nodes:

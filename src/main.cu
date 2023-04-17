@@ -1,8 +1,13 @@
 #include <cuda_runtime.h>
 #include <iostream>
+#include <map>
+#include <vector>
 
-#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/partition.h>
+#include <thrust/sort.h>
 
 #include "simulation.h"
 
@@ -17,6 +22,55 @@ void cuda_check(cudaError_t e, const char* file, int line)
 
 #define CUDA_CHECK(func) cuda_check(func, __FILE__, __LINE__)
 
+void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float window_size, float max_time,
+							  thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times,
+							  size_t max_traj_len, size_t n_trajectories)
+{
+	auto begin = thrust::make_zip_iterator(traj_states, traj_times);
+	auto end = thrust::make_zip_iterator(traj_states + n_trajectories * max_traj_len,
+										 traj_times + n_trajectories * max_traj_len);
+
+	size_t window_idx = 0;
+
+	for (float cumul_time = window_size; cumul_time < max_time; cumul_time += window_size, window_idx++)
+	{
+		auto partition_point =
+			thrust::partition(begin, end, [cumul_time, window_size] __device__(const thrust::tuple<size_t, float>& t) {
+				return (cumul_time - window_size < thrust::get<1>(t)) && (thrust::get<1>(t) < cumul_time);
+			});
+
+		size_t states_in_window_size = partition_point - begin;
+
+		if (states_in_window_size == 0)
+			continue;
+
+		thrust::sort_by_key(begin.get_iterator_tuple().get<0>(), partition_point.get_iterator_tuple().get<0>(),
+							begin.get_iterator_tuple().get<1>());
+
+		thrust::device_vector<size_t> d_res_states(states_in_window_size);
+		thrust::device_vector<float> d_res_times(states_in_window_size);
+
+		auto res_end =
+			thrust::reduce_by_key(begin.get_iterator_tuple().get<0>(), partition_point.get_iterator_tuple().get<0>(),
+								  begin.get_iterator_tuple().get<1>(), d_res_states.begin(), d_res_times.begin());
+
+		size_t res_size = res_end.first - d_res_states.begin();
+
+		std::vector<size_t> states(res_size);
+		std::vector<float> times(res_size);
+
+		CUDA_CHECK(cudaMemcpy(states.data(), thrust::raw_pointer_cast(d_res_states.data()), res_size * sizeof(size_t),
+							  cudaMemcpyDeviceToHost));
+		CUDA_CHECK(cudaMemcpy(times.data(), thrust::raw_pointer_cast(d_res_times.data()), res_size * sizeof(float),
+							  cudaMemcpyDeviceToHost));
+
+		for (size_t i = 0; i < res_size; ++i)
+		{
+			probs[window_idx][states[i]] += times[i];
+		}
+	}
+}
+
 int main()
 {
 	CUDA_CHECK(cudaSetDevice(0));
@@ -24,7 +78,8 @@ int main()
 	int trajectories = 1'000'000;
 	size_t max_traj_len = 100;
 
-	float max_time = 100.f;
+	float max_time = 5.f;
+	float window_size = 0.2f;
 
 	size_t* d_states;
 	float* d_times;
@@ -34,6 +89,9 @@ int main()
 	float* d_traj_times;
 	size_t* d_traj_lengths;
 	bool* d_finished;
+
+	std::vector<std::map<size_t, float>> probs;
+	probs.resize(max_time / window_size);
 
 	CUDA_CHECK(cudaMalloc(&d_states, trajectories * sizeof(size_t)));
 	CUDA_CHECK(cudaMalloc(&d_times, trajectories * sizeof(float)));
@@ -60,13 +118,22 @@ int main()
 		bool finished;
 		CUDA_CHECK(cudaMemcpy(&finished, d_finished, sizeof(bool), cudaMemcpyDeviceToHost));
 
-		thrust::sort_by_key(thrust::device, d_traj_states, d_traj_states + trajectories * max_traj_len, d_traj_times);
+		statistics_windows_probs(probs, window_size, max_time, thrust::device_pointer_cast(d_traj_states),
+								 thrust::device_pointer_cast(d_traj_times), max_traj_len, trajectories);
 
-		auto end = thrust::reduce_by_key(thrust::device, d_traj_states, d_traj_states + trajectories * max_traj_len,
-										 d_traj_times, d_res_states, d_res_times);
+		CUDA_CHECK(cudaMemset(d_traj_times, 0, trajectories * max_traj_len * sizeof(float)));
 
-        
-		std::cout << "one sim " << end.first - d_res_states << std::endl;
+		std::cout << "one sim " << std::endl;
+
+		for (size_t i = 0; i < probs.size(); ++i)
+		{
+			std::cout << "window " << i << std::endl;
+			for (auto& [state, time] : probs[i])
+			{
+				std::cout << state << " " << time << std::endl;
+			}
+		}
+
 
 		if (finished)
 			break;
@@ -81,9 +148,9 @@ int main()
 	CUDA_CHECK(cudaFree(d_traj_states));
 	CUDA_CHECK(cudaFree(d_traj_times));
 	CUDA_CHECK(cudaFree(d_traj_lengths));
-    CUDA_CHECK(cudaFree(d_finished));
-    CUDA_CHECK(cudaFree(d_res_states));
-    CUDA_CHECK(cudaFree(d_res_times));
+	CUDA_CHECK(cudaFree(d_finished));
+	CUDA_CHECK(cudaFree(d_res_states));
+	CUDA_CHECK(cudaFree(d_res_times));
 
 	return 0;
 }
