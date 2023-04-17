@@ -30,6 +30,7 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 	thrust::device_vector<float> diffs(n_trajectories * max_traj_len);
 
 	thrust::adjacent_difference(traj_times, traj_times + n_trajectories * max_traj_len, diffs.begin());
+	std::cout << "adj diff" << std::endl;
 
 	auto begin = thrust::make_zip_iterator(traj_states, traj_times, diffs.begin());
 	auto end = thrust::make_zip_iterator(traj_states + n_trajectories * max_traj_len,
@@ -51,6 +52,9 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 				return !(e < w_b || b >= w_e);
 			});
 
+		
+		std::cout << "part" << std::endl;
+
 		size_t states_in_window_size = partition_point - begin;
 
 		if (states_in_window_size == 0)
@@ -58,6 +62,8 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 
 		thrust::sort_by_key(traj_states, traj_states + states_in_window_size,
 							thrust::make_zip_iterator(traj_times, diffs.begin()));
+
+		std::cout << "sort" << std::endl;
 
 		thrust::device_vector<size_t> d_res_states(states_in_window_size);
 		thrust::device_vector<float> d_res_times(states_in_window_size);
@@ -73,6 +79,9 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 		auto res_end = thrust::reduce_by_key(traj_states, traj_states + states_in_window_size, time_slices_begin,
 											 d_res_states.begin(), d_res_times.begin());
 
+		
+		std::cout << "reduce" << std::endl;
+
 		size_t res_size = res_end.first - d_res_states.begin();
 
 		std::vector<size_t> states(res_size);
@@ -83,10 +92,14 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 		CUDA_CHECK(cudaMemcpy(times.data(), thrust::raw_pointer_cast(d_res_times.data()), res_size * sizeof(float),
 							  cudaMemcpyDeviceToHost));
 
+		std::cout << "cpy" << std::endl;
+
 		for (size_t i = 0; i < res_size; ++i)
 		{
 			probs[window_idx][states[i]] += times[i];
 		}
+
+		std::cout << "host upd" << std::endl;
 	}
 }
 
@@ -131,6 +144,8 @@ int main()
 	{
 		run_simulate(max_time, trajectories, d_states, d_times, d_rands, d_traj_states, d_traj_times, max_traj_len,
 					 d_traj_lengths);
+
+		std::cout << "sim" << std::endl;
 
 		statistics_windows_probs(probs, window_size, max_time, thrust::device_pointer_cast(d_traj_states),
 								 thrust::device_pointer_cast(d_traj_times), max_traj_len, trajectories);
