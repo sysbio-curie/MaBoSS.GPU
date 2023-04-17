@@ -9,6 +9,10 @@ from bnd_types import *
 import sys
 
 
+def generate_header(nodes):
+    return f'constexpr int states_count = {len(nodes)};\n'
+
+
 def generate_aggregate_function(nodes):
 
     aggregate_function = '''
@@ -62,6 +66,9 @@ def generate_kernel(bnd_stream, cfg_stream, out_file):
             variables[declaration.name] = declaration.evaluate(variables)
 
     f = open(out_file, "w")
+
+    # generate header
+    f.write(generate_header(nodes))
 
     # generate transition functions
     for node in nodes:

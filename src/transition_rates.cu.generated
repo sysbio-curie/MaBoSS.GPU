@@ -1,3 +1,4 @@
+constexpr int states_count = 10;
 
 __device__ float CycD_rate(size_t state)
 {
