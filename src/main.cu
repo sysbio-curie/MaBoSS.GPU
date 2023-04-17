@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 
+#include <thrust/adjacent_difference.h>
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -26,17 +27,28 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 							  thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times,
 							  size_t max_traj_len, size_t n_trajectories)
 {
-	auto begin = thrust::make_zip_iterator(traj_states, traj_times);
+	thrust::device_vector<float> diffs(n_trajectories * max_traj_len);
+
+	thrust::adjacent_difference(traj_times, traj_times + n_trajectories * max_traj_len, diffs.begin());
+
+	auto begin = thrust::make_zip_iterator(traj_states, traj_times, diffs.begin());
 	auto end = thrust::make_zip_iterator(traj_states + n_trajectories * max_traj_len,
-										 traj_times + n_trajectories * max_traj_len);
+										 traj_times + n_trajectories * max_traj_len, diffs.end());
 
 	size_t window_idx = 0;
 
 	for (float cumul_time = window_size; cumul_time < max_time; cumul_time += window_size, window_idx++)
 	{
+		float w_b = cumul_time - window_size;
+		float w_e = cumul_time;
+
+		// find states in the window by moving them to the front
 		auto partition_point =
-			thrust::partition(begin, end, [cumul_time, window_size] __device__(const thrust::tuple<size_t, float>& t) {
-				return (cumul_time - window_size < thrust::get<1>(t)) && (thrust::get<1>(t) < cumul_time);
+			thrust::partition(begin, end, [w_b, w_e] __device__(const thrust::tuple<size_t, float, float>& t) {
+				const float b = thrust::get<1>(t) - thrust::get<2>(t);
+				const float e = thrust::get<1>(t);
+
+				return !(e < w_b || b >= w_e);
 			});
 
 		size_t states_in_window_size = partition_point - begin;
@@ -44,15 +56,22 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 		if (states_in_window_size == 0)
 			continue;
 
-		thrust::sort_by_key(begin.get_iterator_tuple().get<0>(), partition_point.get_iterator_tuple().get<0>(),
-							begin.get_iterator_tuple().get<1>());
+		thrust::sort_by_key(traj_states, traj_states + states_in_window_size,
+							thrust::make_zip_iterator(traj_times, diffs.begin()));
 
 		thrust::device_vector<size_t> d_res_states(states_in_window_size);
 		thrust::device_vector<float> d_res_times(states_in_window_size);
 
-		auto res_end =
-			thrust::reduce_by_key(begin.get_iterator_tuple().get<0>(), partition_point.get_iterator_tuple().get<0>(),
-								  begin.get_iterator_tuple().get<1>(), d_res_states.begin(), d_res_times.begin());
+		auto time_slices_begin =
+			thrust::make_transform_iterator(thrust::make_zip_iterator(traj_times, diffs.begin()),
+											[w_b, w_e] __host__ __device__(const thrust::tuple<float, float>& t) {
+												const float b = thrust::get<0>(t) - thrust::get<1>(t);
+												const float e = thrust::get<0>(t);
+												return fminf(w_e, e) - fmaxf(w_b, b);
+											});
+
+		auto res_end = thrust::reduce_by_key(traj_states, traj_states + states_in_window_size, time_slices_begin,
+											 d_res_states.begin(), d_res_times.begin());
 
 		size_t res_size = res_end.first - d_res_states.begin();
 
@@ -66,7 +85,7 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 
 		for (size_t i = 0; i < res_size; ++i)
 		{
-			probs[window_idx][states[i]] += times[i] - (cumul_time - window_size);
+			probs[window_idx][states[i]] += times[i];
 		}
 	}
 }
