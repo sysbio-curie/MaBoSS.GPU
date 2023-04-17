@@ -34,6 +34,8 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, size
 	float r = curand_uniform(rands + id);
 	states[id] = (size_t)(((1 << states_count) - 1) * r);
 
+	printf("state %i\n", (int)states[id]);
+
 	// set time to zero
 	times[id] = 0.f;
 }
@@ -87,6 +89,8 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 
 		int flip_bit = select_flip_bit(transition_rates, state, total_rate, &rand);
 		state ^= 1 << flip_bit;
+
+		printf("thread %i flip bit %i next state %i\n", id, flip_bit, state);
 	}
 
 	// save thread variables
