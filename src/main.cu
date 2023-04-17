@@ -107,7 +107,6 @@ int main()
 	size_t* d_traj_states;
 	float* d_traj_times;
 	size_t* d_traj_lengths;
-	bool* d_finished;
 
 	std::vector<std::map<size_t, float>> probs;
 	probs.resize(max_time / window_size);
@@ -119,7 +118,6 @@ int main()
 	CUDA_CHECK(cudaMalloc(&d_traj_states, trajectories * max_traj_len * sizeof(size_t)));
 	CUDA_CHECK(cudaMalloc(&d_traj_times, trajectories * max_traj_len * sizeof(float)));
 	CUDA_CHECK(cudaMalloc(&d_traj_lengths, trajectories * max_traj_len * sizeof(size_t)));
-	CUDA_CHECK(cudaMalloc(&d_finished, sizeof(bool)));
 
 	size_t* d_res_states;
 	float* d_res_times;
@@ -129,13 +127,10 @@ int main()
 
 	run_initialize(trajectories, 1234, d_states, d_times, d_rands);
 
-	while (true)
+	while (trajectories)
 	{
 		run_simulate(max_time, trajectories, d_states, d_times, d_rands, d_traj_states, d_traj_times, max_traj_len,
-					 d_traj_lengths, d_finished);
-
-		bool finished;
-		CUDA_CHECK(cudaMemcpy(&finished, d_finished, sizeof(bool), cudaMemcpyDeviceToHost));
+					 d_traj_lengths);
 
 		statistics_windows_probs(probs, window_size, max_time, thrust::device_pointer_cast(d_traj_states),
 								 thrust::device_pointer_cast(d_traj_times), max_traj_len, trajectories);
@@ -161,13 +156,6 @@ int main()
 				std::cout << state << " " << time / (1'000'000 * window_size) << std::endl;
 			}
 		}
-
-
-		if (finished)
-			break;
-
-		finished = true;
-		CUDA_CHECK(cudaMemcpy(d_finished, &finished, sizeof(bool), cudaMemcpyHostToDevice));
 	}
 
 	CUDA_CHECK(cudaFree(d_states));
@@ -176,7 +164,6 @@ int main()
 	CUDA_CHECK(cudaFree(d_traj_states));
 	CUDA_CHECK(cudaFree(d_traj_times));
 	CUDA_CHECK(cudaFree(d_traj_lengths));
-	CUDA_CHECK(cudaFree(d_finished));
 	CUDA_CHECK(cudaFree(d_res_states));
 	CUDA_CHECK(cudaFree(d_res_times));
 

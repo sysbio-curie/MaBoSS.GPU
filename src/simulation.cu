@@ -34,7 +34,7 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, size
 	float r = curand_uniform(rands + id);
 	states[id] = (size_t)(((1 << states_count) - 1) * r);
 
-	//printf("state %i\n", (int)states[id]);
+	// printf("state %i\n", (int)states[id]);
 
 	// set time to zero
 	times[id] = 0.f;
@@ -48,7 +48,7 @@ void run_initialize(int trajectories_count, unsigned long long seed, size_t* sta
 __global__ void simulate(float max_time, int trajectories_count, size_t* __restrict__ states, float* __restrict__ times,
 						 curandState* __restrict__ rands, size_t* __restrict__ trajectory_states,
 						 float* __restrict__ trajectory_times, const size_t trajectory_limit,
-						 size_t* __restrict__ used_trajectory_size, bool* __restrict__ finished)
+						 size_t* __restrict__ used_trajectory_size)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -90,7 +90,7 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 		int flip_bit = select_flip_bit(transition_rates, state, total_rate, &rand);
 		state ^= 1 << flip_bit;
 
-		//printf("thread %i flip bit %i next state %i\n", id, flip_bit, state);
+		// printf("thread %i flip bit %i next state %i\n", id, flip_bit, state);
 	}
 
 	// save thread variables
@@ -98,16 +98,13 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 	states[id] = state;
 	times[id] = time;
 	used_trajectory_size[id] = step;
-
-	if (step == trajectory_limit)
-		*finished = false;
 }
 
 void run_simulate(float max_time, int trajectories_count, size_t* states, float* times, curandState* rands,
 				  size_t* trajectory_states, float* trajectory_times, const size_t trajectory_limit,
-				  size_t* used_trajectory_size, bool* finished)
+				  size_t* used_trajectory_size)
 {
 	simulate<<<trajectories_count / 256 + 1, 256>>>(max_time, trajectories_count, states, times, rands,
 													trajectory_states, trajectory_times, trajectory_limit,
-													used_trajectory_size, finished);
+													used_trajectory_size);
 }
