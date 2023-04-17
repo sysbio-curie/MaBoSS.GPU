@@ -97,7 +97,7 @@ int main()
 	int trajectories = 1'000'000;
 	size_t max_traj_len = 100;
 
-	float max_time = 5.f;
+	float max_time = 50.f;
 	float window_size = 0.2f;
 
 	size_t* d_states;
