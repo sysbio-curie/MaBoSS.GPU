@@ -94,8 +94,8 @@ int main()
 {
 	CUDA_CHECK(cudaSetDevice(0));
 
-	int trajectories = 10;
-	size_t max_traj_len = 10000;
+	int trajectories = 1'000'000;
+	size_t max_traj_len = 100;
 
 	float max_time = 5.f;
 	float window_size = 0.2f;
