@@ -142,14 +142,23 @@ int main()
 
 		CUDA_CHECK(cudaMemset(d_traj_times, 0, trajectories * max_traj_len * sizeof(float)));
 
-		std::cout << "one sim " << std::endl;
+		auto remaining_traj_begin = thrust::make_zip_iterator(d_states, d_times, d_rands);
+		auto remaining_traj_end =
+			thrust::make_zip_iterator(d_states + trajectories, d_times + trajectories, d_rands + trajectories);
+
+		remaining_traj_end = thrust::partition(thrust::device, remaining_traj_begin, remaining_traj_end, d_traj_lengths,
+											   [max_traj_len] __device__(size_t l) { return l == max_traj_len; });
+
+		trajectories = remaining_traj_end.get_iterator_tuple().get<0>() - d_states;
+
+		std::cout << "one sim " << trajectories << std::endl;
 
 		for (size_t i = 0; i < probs.size(); ++i)
 		{
 			std::cout << "window " << i << std::endl;
 			for (auto& [state, time] : probs[i])
 			{
-				std::cout << state << " " << time / (trajectories * window_size) << std::endl;
+				std::cout << state << " " << time / (1'000'000 * window_size) << std::endl;
 			}
 		}
 
