@@ -1,19 +1,16 @@
-#include <cuda_runtime.h>
-#include <iostream>
-#include <map>
-#include <vector>
-
 #include <thrust/adjacent_difference.h>
-#include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/partition.h>
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 #include <thrust/zip_function.h>
 
-#include "simulation.h"
+#include "statistics.h"
 #include "timer.h"
+#include "utils.h"
+
+constexpr bool print_diags = false;
+constexpr size_t batch_size_limit = 50'000'000; // TODO
 
 struct in_window_functor
 {
@@ -27,22 +24,10 @@ struct in_window_functor
 	}
 };
 
-void cuda_check(cudaError_t e, const char* file, int line)
+void window_average(wnd_prob_t& window_averages, float window_size, float max_time,
+					thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times, size_t max_traj_len,
+					size_t n_trajectories)
 {
-	if (e != cudaSuccess)
-	{
-		std::printf("CUDA API failed at %s:%d with error: %s (%d)\n", file, line, cudaGetErrorString(e), e);
-		std::exit(EXIT_FAILURE);
-	}
-}
-
-#define CUDA_CHECK(func) cuda_check(func, __FILE__, __LINE__)
-
-void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float window_size, float max_time,
-							  thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times,
-							  size_t max_traj_len, size_t n_trajectories)
-{
-	constexpr size_t batch_size_limit = 50'000'000;
 	size_t windows_count = std::ceil(max_time / window_size);
 
 	timer t;
@@ -216,9 +201,15 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
 
 		// update
+		window_averages.resize(windows_count);
 		for (size_t i = 0; i < result_size; ++i)
 		{
-			probs[h_res_window_idxs[i]][h_res_states[i]] += h_res_times[i];
+			auto it = window_averages[h_res_window_idxs[i]].find(h_res_states[i]);
+
+			if (it != window_averages[h_res_window_idxs[i]].end())
+				window_averages[h_res_window_idxs[i]][h_res_states[i]] += h_res_times[i];
+			else
+				window_averages[h_res_window_idxs[i]][h_res_states[i]] = h_res_times[i];
 		}
 
 		t.stop();
@@ -228,93 +219,12 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 		batch_idx_begin = batch_idx_end;
 	}
 
-	// print diagnostics
-	std::cout << "slices_time: " << slices_time << "ms" << std::endl;
-	std::cout << "partition_time: " << partition_time << "ms" << std::endl;
-	std::cout << "sort_time: " << sort_time << "ms" << std::endl;
-	std::cout << "reduce_time: " << reduce_time << "ms" << std::endl;
-	std::cout << "update_time: " << update_time << "ms" << std::endl;
-}
-
-int main()
-{
-	CUDA_CHECK(cudaSetDevice(0));
-
-	const int o_trajectories = 1'000'000;
-	int trajectories = o_trajectories;
-	size_t max_traj_len = 100;
-
-	float max_time = 5.f;
-	float window_size = 0.2f;
-
-	size_t* d_states;
-	float* d_times;
-	curandState* d_rands;
-
-	size_t* d_traj_states;
-	float* d_traj_times;
-	size_t* d_traj_lengths;
-
-	std::vector<std::map<size_t, float>> probs;
-	probs.resize((size_t)std::ceil(max_time / window_size));
-
-	CUDA_CHECK(cudaMalloc(&d_states, trajectories * sizeof(size_t)));
-	CUDA_CHECK(cudaMalloc(&d_times, trajectories * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_rands, trajectories * sizeof(curandState)));
-
-	CUDA_CHECK(cudaMalloc(&d_traj_states, trajectories * max_traj_len * sizeof(size_t)));
-	CUDA_CHECK(cudaMalloc(&d_traj_times, trajectories * max_traj_len * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_traj_lengths, trajectories * max_traj_len * sizeof(size_t)));
-
-	size_t* d_res_states;
-	float* d_res_times;
-
-	CUDA_CHECK(cudaMalloc(&d_res_states, trajectories * sizeof(size_t)));
-	CUDA_CHECK(cudaMalloc(&d_res_times, trajectories * sizeof(float)));
-
-	run_initialize(trajectories, 1234, d_states, d_times, d_rands);
-
-	while (trajectories)
+	if (print_diags)
 	{
-		run_simulate(max_time, trajectories, d_states, d_times, d_rands, d_traj_states, d_traj_times, max_traj_len,
-					 d_traj_lengths);
-
-		std::cout << "sim" << std::endl;
-
-		statistics_windows_probs(probs, window_size, max_time, thrust::device_pointer_cast(d_traj_states),
-								 thrust::device_pointer_cast(d_traj_times), max_traj_len, trajectories);
-
-		CUDA_CHECK(cudaMemset(d_traj_times, 0, trajectories * max_traj_len * sizeof(float)));
-
-		auto remaining_traj_begin = thrust::make_zip_iterator(d_states, d_times, d_rands);
-		auto remaining_traj_end =
-			thrust::make_zip_iterator(d_states + trajectories, d_times + trajectories, d_rands + trajectories);
-
-		remaining_traj_end = thrust::partition(thrust::device, remaining_traj_begin, remaining_traj_end, d_traj_lengths,
-											   [max_traj_len] __device__(size_t l) { return l == max_traj_len; });
-
-		trajectories = remaining_traj_end.get_iterator_tuple().get<0>() - d_states;
-
-		// std::cout << "one sim " << trajectories << std::endl;
-
-		for (size_t i = 0; i < probs.size(); ++i)
-		{
-			std::cout << "window " << i << std::endl;
-			for (auto& [state, time] : probs[i])
-			{
-				std::cout << state << " " << time / (o_trajectories * window_size) << std::endl;
-			}
-		}
+		std::cout << "slices_time: " << slices_time << "ms" << std::endl;
+		std::cout << "partition_time: " << partition_time << "ms" << std::endl;
+		std::cout << "sort_time: " << sort_time << "ms" << std::endl;
+		std::cout << "reduce_time: " << reduce_time << "ms" << std::endl;
+		std::cout << "update_time: " << update_time << "ms" << std::endl;
 	}
-
-	CUDA_CHECK(cudaFree(d_states));
-	CUDA_CHECK(cudaFree(d_times));
-	CUDA_CHECK(cudaFree(d_rands));
-	CUDA_CHECK(cudaFree(d_traj_states));
-	CUDA_CHECK(cudaFree(d_traj_times));
-	CUDA_CHECK(cudaFree(d_traj_lengths));
-	CUDA_CHECK(cudaFree(d_res_states));
-	CUDA_CHECK(cudaFree(d_res_times));
-
-	return 0;
 }

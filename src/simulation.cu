@@ -47,10 +47,10 @@ void run_initialize(int trajectories_count, unsigned long long seed, size_t* sta
 	initialize<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, states, times, rands);
 }
 
-__global__ void simulate(float max_time, int trajectories_count, size_t* __restrict__ states, float* __restrict__ times,
-						 curandState* __restrict__ rands, size_t* __restrict__ trajectory_states,
-						 float* __restrict__ trajectory_times, const size_t trajectory_limit,
-						 size_t* __restrict__ used_trajectory_size)
+__global__ void simulate(float max_time, int trajectories_count, int trajectory_limit, size_t* __restrict__ last_states,
+						 float* __restrict__ last_times, curandState* __restrict__ rands,
+						 size_t* __restrict__ trajectory_states, float* __restrict__ trajectory_times,
+						 int* __restrict__ trajectory_lengths)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -60,9 +60,9 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 
 	// Initialize thread variables
 	curandState rand = rands[id];
-	size_t state = states[id];
-	float time = times[id];
-	size_t step = 0;
+	size_t state = last_states[id];
+	float time = last_times[id];
+	int step = 0;
 	trajectory_states = trajectory_states + id * trajectory_limit;
 	trajectory_times = trajectory_times + id * trajectory_limit;
 
@@ -97,16 +97,15 @@ __global__ void simulate(float max_time, int trajectories_count, size_t* __restr
 
 	// save thread variables
 	rands[id] = rand;
-	states[id] = state;
-	times[id] = time;
-	used_trajectory_size[id] = step;
+	last_states[id] = state;
+	last_times[id] = time;
+	trajectory_lengths[id] = step;
 }
 
-void run_simulate(float max_time, int trajectories_count, size_t* states, float* times, curandState* rands,
-				  size_t* trajectory_states, float* trajectory_times, const size_t trajectory_limit,
-				  size_t* used_trajectory_size)
+void run_simulate(float max_time, int trajectories_count, int trajectory_limit, size_t* last_states, float* last_times,
+				  curandState* rands, size_t* trajectory_states, float* trajectory_times, int* trajectory_lengths)
 {
-	simulate<<<DIV_UP(trajectories_count, 256), 256>>>(max_time, trajectories_count, states, times, rands,
-													   trajectory_states, trajectory_times, trajectory_limit,
-													   used_trajectory_size);
+	simulate<<<DIV_UP(trajectories_count, 256), 256>>>(max_time, trajectories_count, trajectory_limit, last_states,
+													   last_times, rands, trajectory_states, trajectory_times,
+													   trajectory_lengths);
 }
