@@ -9,9 +9,23 @@
 #include <thrust/execution_policy.h>
 #include <thrust/partition.h>
 #include <thrust/sort.h>
+#include <thrust/unique.h>
+#include <thrust/zip_function.h>
 
 #include "simulation.h"
 #include "timer.h"
+
+struct in_window_functor
+{
+	float window_begin, window_end;
+
+	in_window_functor(float window_begin, float window_end) : window_begin(window_begin), window_end(window_end) {}
+
+	__device__ bool operator()(float slice_begin, float slice_end)
+	{
+		return !(slice_end < window_begin || slice_begin >= window_end) && slice_end != 0.f;
+	}
+};
 
 void cuda_check(cudaError_t e, const char* file, int line)
 {
@@ -28,12 +42,16 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 							  thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times,
 							  size_t max_traj_len, size_t n_trajectories)
 {
+	constexpr size_t batch_size_limit = 50'000'000;
+	size_t windows_count = std::ceil(max_time / window_size);
+
 	timer t;
-	long long slices_time = 0.f, partition_time = 0.f, sort_time = 0.f, reduce_time = 0.f, update_time = 0.f;
+	long long slices_time = 0.f, count_time = 0.f, partition_time = 0.f, sort_time = 0.f, reduce_time = 0.f,
+			  update_time = 0.f;
 
 	t.start();
 
-	// sice traj_times does not contain time slices, but the timepoints of transitions,
+	// since traj_times does not contain time slices, but the timepoints of transitions,
 	// we compute a beginning for each timepoint for convenience
 	thrust::device_vector<float> traj_time_starts(n_trajectories * max_traj_len);
 	thrust::adjacent_difference(traj_times, traj_times + n_trajectories * max_traj_len, traj_time_starts.begin());
@@ -48,107 +66,166 @@ void statistics_windows_probs(std::vector<std::map<size_t, float>>& probs, float
 	auto begin = thrust::make_zip_iterator(traj_states, traj_time_starts.begin(), traj_times);
 	auto end = begin + n_trajectories * max_traj_len;
 
-	auto hard_partition_point = begin;
-
+	// host and device result arrays
+	thrust::device_vector<size_t> d_res_window_idxs;
 	thrust::device_vector<size_t> d_res_states;
 	thrust::device_vector<float> d_res_times;
-
+	std::vector<size_t> h_res_window_idxs;
 	std::vector<size_t> h_res_states;
 	std::vector<float> h_res_times;
 
-	// we process a time window at a time
-	size_t window_idx = 0;
-	for (float cumul_time = window_size; cumul_time < max_time;
-		 cumul_time += window_size, window_idx++, begin = hard_partition_point)
+	t.start();
+
+	std::vector<size_t> windows_sizes;
+
+	// compute the size of each window
+	for (size_t window_idx = 0; window_idx < windows_count; window_idx++)
 	{
-		float w_b = cumul_time - window_size;
-		float w_e = cumul_time;
+		float w_b = window_idx * window_size;
+		float w_e = w_b + window_size;
+
+		// find states in the window by moving them to the front
+		auto time_begin = thrust::make_zip_iterator(traj_time_starts.begin(), traj_times);
+		windows_sizes.push_back(thrust::count_if(time_begin, time_begin + n_trajectories * max_traj_len,
+												 thrust::make_zip_function(in_window_functor(w_b, w_e))));
+	}
+
+	t.stop();
+
+	count_time += t.millisecs();
+
+	// we compute offsets for each window data
+	{
+		auto whole_size = thrust::reduce(windows_sizes.begin(), windows_sizes.end());
+		thrust::exclusive_scan(windows_sizes.begin(), windows_sizes.end(), windows_sizes.begin());
+		windows_sizes.push_back(whole_size);
+	}
+
+	// divide windows to batches of batch_size_limit so we do not OOM
+	std::vector<size_t> batch_indices;
+	{
+		batch_indices.push_back(0);
+		size_t batch_idx_begin = 0;
+		for (int i = 0; i < windows_sizes.size(); i++)
+		{
+			if ((windows_sizes[i] - windows_sizes[batch_idx_begin]) < batch_size_limit && i != windows_sizes.size() - 1)
+				continue;
+
+			batch_indices.push_back(i);
+			batch_idx_begin = i;
+		}
+	}
+
+	thrust::device_vector<size_t> batch_states;
+	thrust::device_vector<int> batch_window_idxs;
+	thrust::device_vector<float> batch_time_starts, batch_time_ends;
+
+	// we compute a batch of windows at a time
+	for (int i = 0; i < batch_indices.size() - 1; i++)
+	{
+		size_t batch_idx_begin = batch_indices[i];
+		size_t batch_idx_end = batch_indices[i + 1];
+		size_t batch_size = windows_sizes[batch_idx_end] - windows_sizes[batch_idx_begin];
+
+		batch_states.resize(batch_size);
+		batch_window_idxs.resize(batch_size);
+		batch_time_starts.resize(batch_size);
+		batch_time_ends.resize(batch_size);
+
+		auto batch_begin =
+			thrust::make_zip_iterator(batch_states.begin(), batch_time_starts.begin(), batch_time_ends.begin());
 
 		t.start();
 
-		hard_partition_point =
-			thrust::partition(begin, end, [w_b, w_e] __device__(const thrust::tuple<size_t, float, float>& t) {
-				const float e = thrust::get<2>(t);
+		// we fill in batch arrays with windows in this batch
+		for (size_t window_idx = batch_idx_begin; window_idx < batch_idx_end; window_idx++)
+		{
+			size_t in_batch_offset = windows_sizes[window_idx] - windows_sizes[batch_idx_begin];
+			float w_b = window_idx * window_size;
+			float w_e = w_b + window_size;
 
-				return e <= w_e;
-			});
+			auto key_begin = thrust::make_zip_iterator(traj_time_starts.begin(), traj_times);
+			thrust::copy_if(begin, begin + n_trajectories * max_traj_len, key_begin, batch_begin + in_batch_offset,
+							thrust::make_zip_function(in_window_functor(w_b, w_e)));
 
-		// find states in the window by moving them to the front
-		auto partition_point = thrust::partition(hard_partition_point, end,
-												 [w_b, w_e] __device__(const thrust::tuple<size_t, float, float>& t) {
-													 const float b = thrust::get<1>(t);
-													 const float e = thrust::get<2>(t);
-
-													 return !(e < w_b || b >= w_e);
-												 });
+			thrust::fill(batch_window_idxs.begin() + in_batch_offset,
+						 batch_window_idxs.begin() + windows_sizes[window_idx + 1] - windows_sizes[batch_idx_begin],
+						 window_idx);
+		}
 
 		t.stop();
 
 		partition_time += t.millisecs();
 
-		size_t states_in_window_size = partition_point - begin;
-
-		// no states in the window - can happen since we are processing trajs in parts
-		if (states_in_window_size == 0)
-			continue;
-
 		t.start();
 
-		// let us sort (state, (time_b, time_e)) array by state so we can reduce it in the next step
-		thrust::sort_by_key(
-			begin.get_iterator_tuple().get<0>(), begin.get_iterator_tuple().get<0>() + states_in_window_size,
-			thrust::make_zip_iterator(begin.get_iterator_tuple().get<1>(), begin.get_iterator_tuple().get<2>()));
+		// let us sort ((window_idx, state, time_b, time_e)) array by (window_idx, state) key
+		// so we can reduce it in the next step
+		auto key_begin = thrust::make_zip_iterator(batch_window_idxs.begin(), batch_states.begin());
+		auto data_begin = thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin());
+		thrust::sort_by_key(key_begin, key_begin + batch_size, data_begin);
 
 		t.stop();
 
 		sort_time += t.millisecs();
 
-		// create transform iterator, which computes the intersection of the window and the transition time slice
+		// create transform iterator, which computes the intersection of a window and a transition time slice
 		auto time_slices_begin = thrust::make_transform_iterator(
-			thrust::make_zip_iterator(begin.get_iterator_tuple().get<1>(), begin.get_iterator_tuple().get<2>()),
-			[w_b, w_e] __host__ __device__(const thrust::tuple<float, float>& t) {
+			thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin(), batch_window_idxs.begin()),
+			[window_size, max_time] __host__ __device__(const thrust::tuple<float, float, size_t>& t) {
 				const float b = thrust::get<0>(t);
 				const float e = thrust::get<1>(t);
+
+				const float w_b = thrust::get<2>(t) * window_size;
+				const float w_e = fminf(w_b + window_size, max_time);
+
 				return fminf(w_e, e) - fmaxf(w_b, b);
 			});
 
 		t.start();
 
-		d_res_states.resize(states_in_window_size);
-		d_res_times.resize(states_in_window_size);
+		// we compute the size of the result (sum of unique states in each window)
+		size_t result_size = thrust::unique_count(key_begin, key_begin + batch_size);
+
+		d_res_window_idxs.resize(result_size);
+		d_res_states.resize(result_size);
+		d_res_times.resize(result_size);
 
 		// reduce sorted array of (state, time_slice)
 		// after this we have unique states in the first result array and sum of slices in the second result array
-		auto res_end = thrust::reduce_by_key(begin.get_iterator_tuple().get<0>(),
-											 begin.get_iterator_tuple().get<0>() + states_in_window_size,
-											 time_slices_begin, d_res_states.begin(), d_res_times.begin());
+		thrust::reduce_by_key(key_begin, key_begin + batch_size, time_slices_begin,
+							  thrust::make_zip_iterator(d_res_window_idxs.begin(), d_res_states.begin()),
+							  d_res_times.begin());
 
 		t.stop();
 
 		reduce_time += t.millisecs();
 
-		size_t res_size = res_end.first - d_res_states.begin();
-
 		t.start();
 
-		h_res_states.resize(res_size);
-		h_res_times.resize(res_size);
+		h_res_window_idxs.resize(result_size);
+		h_res_states.resize(result_size);
+		h_res_times.resize(result_size);
 
 		// copy result data into host
+		CUDA_CHECK(cudaMemcpy(h_res_window_idxs.data(), thrust::raw_pointer_cast(d_res_window_idxs.data()),
+							  result_size * sizeof(size_t), cudaMemcpyDeviceToHost));
 		CUDA_CHECK(cudaMemcpy(h_res_states.data(), thrust::raw_pointer_cast(d_res_states.data()),
-							  res_size * sizeof(size_t), cudaMemcpyDeviceToHost));
+							  result_size * sizeof(size_t), cudaMemcpyDeviceToHost));
 		CUDA_CHECK(cudaMemcpy(h_res_times.data(), thrust::raw_pointer_cast(d_res_times.data()),
-							  res_size * sizeof(float), cudaMemcpyDeviceToHost));
+							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
 
 		// update
-		for (size_t i = 0; i < res_size; ++i)
+		for (size_t i = 0; i < result_size; ++i)
 		{
-			probs[window_idx][h_res_states[i]] += h_res_times[i];
+			probs[h_res_window_idxs[i]][h_res_states[i]] += h_res_times[i];
 		}
 
 		t.stop();
 
 		update_time += t.millisecs();
+
+		batch_idx_begin = batch_idx_end;
 	}
 
 	// print diagnostics
@@ -163,10 +240,11 @@ int main()
 {
 	CUDA_CHECK(cudaSetDevice(0));
 
-	int trajectories = 1'000'000;
+	const int o_trajectories = 1'000'000;
+	int trajectories = o_trajectories;
 	size_t max_traj_len = 100;
 
-	float max_time = 50.f;
+	float max_time = 5.f;
 	float window_size = 0.2f;
 
 	size_t* d_states;
@@ -178,7 +256,7 @@ int main()
 	size_t* d_traj_lengths;
 
 	std::vector<std::map<size_t, float>> probs;
-	probs.resize(max_time / window_size);
+	probs.resize((size_t)std::ceil(max_time / window_size));
 
 	CUDA_CHECK(cudaMalloc(&d_states, trajectories * sizeof(size_t)));
 	CUDA_CHECK(cudaMalloc(&d_times, trajectories * sizeof(float)));
@@ -219,14 +297,14 @@ int main()
 
 		// std::cout << "one sim " << trajectories << std::endl;
 
-		 for (size_t i = 0; i < probs.size(); ++i)
+		for (size_t i = 0; i < probs.size(); ++i)
 		{
 			std::cout << "window " << i << std::endl;
 			for (auto& [state, time] : probs[i])
 			{
-				std::cout << state << " " << time / (1'000'000 * window_size) << std::endl;
+				std::cout << state << " " << time / (o_trajectories * window_size) << std::endl;
 			}
-		 }
+		}
 	}
 
 	CUDA_CHECK(cudaFree(d_states));
