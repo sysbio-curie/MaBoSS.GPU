@@ -4,6 +4,8 @@
 #include "simulation.h"
 #include "transition_rates.cu.generated"
 
+#define DIV_UP(x, y) (x + y - 1) / y
+
 __device__ void compute_transition_rates(float* __restrict__ transition_rates, size_t state);
 
 __device__ int select_flip_bit(const float* __restrict__ transition_rates, size_t state, float total_rate,
@@ -42,7 +44,7 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, size
 
 void run_initialize(int trajectories_count, unsigned long long seed, size_t* states, float* times, curandState* rands)
 {
-	initialize<<<trajectories_count / 256 + 1, 256>>>(trajectories_count, seed, states, times, rands);
+	initialize<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, states, times, rands);
 }
 
 __global__ void simulate(float max_time, int trajectories_count, size_t* __restrict__ states, float* __restrict__ times,
@@ -104,7 +106,7 @@ void run_simulate(float max_time, int trajectories_count, size_t* states, float*
 				  size_t* trajectory_states, float* trajectory_times, const size_t trajectory_limit,
 				  size_t* used_trajectory_size)
 {
-	simulate<<<trajectories_count / 256 + 1, 256>>>(max_time, trajectories_count, states, times, rands,
-													trajectory_states, trajectory_times, trajectory_limit,
-													used_trajectory_size);
+	simulate<<<DIV_UP(trajectories_count, 256), 256>>>(max_time, trajectories_count, states, times, rands,
+													   trajectory_states, trajectory_times, trajectory_limit,
+													   used_trajectory_size);
 }
