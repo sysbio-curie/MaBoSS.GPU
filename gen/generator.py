@@ -9,7 +9,7 @@ from bnd_types import *
 import sys
 
 
-def get_internals_mask(nodes, cfg):
+def get_internals(nodes, cfg):
     internals = []
 
     for decl in cfg:
@@ -18,27 +18,34 @@ def get_internals_mask(nodes, cfg):
             if decl.attr == 'is_internal' and decl.expr.evaluate({}) == True:
                 internals.append(decl.name)
 
-    mask = 0
+    arr = []
 
     for i, node in enumerate(nodes):
         if node.name in internals:
-            mask |= (1 << i)
+            arr.append(str(i))
 
-    return mask
+    return arr
 
 
 def generate_header_file(nodes, cfg):
+    internals = get_internals(nodes, cfg)
     return f'''#pragma once
+#include "state.h"
 
 constexpr int states_count = {len(nodes)};
-constexpr size_t internals_mask = {get_internals_mask(nodes, cfg)};
+constexpr int internals[{len(internals)}] = {{ {', '.join(internals)} }};
+'''
+
+
+def generate_heading():
+    return '''#include "types.h"
 '''
 
 
 def generate_aggregate_function(nodes):
 
     aggregate_function = '''
-__device__ void compute_transition_rates(float* __restrict__ transition_rates, size_t state)
+__device__ void compute_transition_rates(float* __restrict__ transition_rates, const state_t& state)
 {'''
 
     for i, node in enumerate(nodes):
@@ -60,7 +67,7 @@ def generate_node_transition_fuction(node, nodes, variables):
         variables, nodes, node)
 
     return f'''
-__device__ float {node_name}_rate(size_t state)
+__device__ float {node_name}_rate(const state_t& state)
 {{
     return {Id(node_name).generate_code(variables, nodes, node)} ? 
         ({down_expr}) : 
@@ -88,6 +95,8 @@ def generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file):
             variables[declaration.name] = declaration.evaluate(variables)
 
     f = open(out_cu_file, "w")
+
+    f.write(generate_heading())
 
     # generate transition functions
     for node in nodes:

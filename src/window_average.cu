@@ -24,9 +24,9 @@ struct in_window_functor
 	}
 };
 
-void window_average(wnd_prob_t& window_averages, float window_size, float max_time, size_t internal_mask,
-					thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times, size_t max_traj_len,
-					size_t n_trajectories)
+void window_average(wnd_prob_t& window_averages, float window_size, float max_time, state_t internal_mask,
+					thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times, int max_traj_len,
+					int n_trajectories)
 {
 	size_t windows_count = std::ceil(max_time / window_size);
 
@@ -45,7 +45,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 	// and mask internal nodes
 	thrust::transform(traj_states, traj_states + n_trajectories * max_traj_len, traj_states,
-					  [internal_mask] __device__(size_t s) { return s & ~internal_mask; });
+					  [internal_mask] __device__(state_t s) { return s & ~internal_mask; });
 
 	t.stop();
 
@@ -56,11 +56,11 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	auto end = begin + n_trajectories * max_traj_len;
 
 	// host and device result arrays
-	thrust::device_vector<size_t> d_res_window_idxs;
-	thrust::device_vector<size_t> d_res_states;
+	thrust::device_vector<int> d_res_window_idxs;
+	thrust::device_vector<state_t> d_res_states;
 	thrust::device_vector<float> d_res_times;
-	std::vector<size_t> h_res_window_idxs;
-	std::vector<size_t> h_res_states;
+	std::vector<int> h_res_window_idxs;
+	std::vector<state_t> h_res_states;
 	std::vector<float> h_res_times;
 
 	t.start();
@@ -105,7 +105,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		}
 	}
 
-	thrust::device_vector<size_t> batch_states;
+	thrust::device_vector<state_t> batch_states;
 	thrust::device_vector<int> batch_window_idxs;
 	thrust::device_vector<float> batch_time_starts, batch_time_ends;
 
@@ -161,7 +161,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		// create transform iterator, which computes the intersection of a window and a transition time slice
 		auto time_slices_begin = thrust::make_transform_iterator(
 			thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin(), batch_window_idxs.begin()),
-			[window_size, max_time] __host__ __device__(const thrust::tuple<float, float, size_t>& t) {
+			[window_size, max_time] __host__ __device__(const thrust::tuple<float, float, int>& t) {
 				const float b = thrust::get<0>(t);
 				const float e = thrust::get<1>(t);
 
@@ -198,9 +198,9 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 		// copy result data into host
 		CUDA_CHECK(cudaMemcpy(h_res_window_idxs.data(), thrust::raw_pointer_cast(d_res_window_idxs.data()),
-							  result_size * sizeof(size_t), cudaMemcpyDeviceToHost));
+							  result_size * sizeof(int), cudaMemcpyDeviceToHost));
 		CUDA_CHECK(cudaMemcpy(h_res_states.data(), thrust::raw_pointer_cast(d_res_states.data()),
-							  result_size * sizeof(size_t), cudaMemcpyDeviceToHost));
+							  result_size * sizeof(state_t), cudaMemcpyDeviceToHost));
 		CUDA_CHECK(cudaMemcpy(h_res_times.data(), thrust::raw_pointer_cast(d_res_times.data()),
 							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
 

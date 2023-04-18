@@ -4,11 +4,13 @@
 
 #include <thrust/device_ptr.h>
 
+#include "types.h"
+
 using seed_t = unsigned long long;
 
 using statistics_func_t =
-	std::function<void(thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times, int n_trajectories,
-					   int trajectory_len_limit)>;
+	std::function<void(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+					   int n_trajectories, int trajectory_len_limit)>;
 
 class simulation_runner
 {

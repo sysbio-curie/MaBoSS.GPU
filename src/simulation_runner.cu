@@ -27,11 +27,11 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 {
 	CUDA_CHECK(cudaSetDevice(0));
 
-	auto d_last_states = thrust::device_malloc<size_t>(n_trajectories_);
+	auto d_last_states = thrust::device_malloc<state_t>(n_trajectories_);
 	auto d_last_times = thrust::device_malloc<float>(n_trajectories_);
 	auto d_rands = thrust::device_malloc<curandState>(n_trajectories_);
 
-	auto d_traj_states = thrust::device_malloc<size_t>(n_trajectories_ * trajectory_len_limit_);
+	auto d_traj_states = thrust::device_malloc<state_t>(n_trajectories_ * trajectory_len_limit_);
 	auto d_traj_times = thrust::device_malloc<float>(n_trajectories_ * trajectory_len_limit_);
 	auto d_traj_lengths = thrust::device_malloc<int>(n_trajectories_ * trajectory_len_limit_);
 

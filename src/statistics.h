@@ -5,8 +5,10 @@
 
 #include <thrust/device_ptr.h>
 
-using wnd_prob_t = std::vector<std::map<size_t, float>>;
+#include "types.h"
 
-void window_average(wnd_prob_t& window_averages, float window_size, float max_time, size_t internal_mask,
-					thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times, size_t max_traj_len,
-					size_t n_trajectories);
+using wnd_prob_t = std::vector<std::map<state_t, float>>;
+
+void window_average(wnd_prob_t& window_averages, float window_size, float max_time, state_t internal_mask,
+					thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times, int max_traj_len,
+					int n_trajectories);

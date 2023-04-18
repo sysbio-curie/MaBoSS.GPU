@@ -104,7 +104,7 @@ class Id(NamedTuple):
 
     def generate_code(self, variables, nodes, curr_node):
         idx = get_node_idx(self.name, nodes)
-        return f"(state & {1 << idx})"
+        return f"state.is_set({idx})"
 
 
 class Var(NamedTuple):
