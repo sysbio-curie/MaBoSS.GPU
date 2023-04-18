@@ -225,10 +225,10 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 	if (print_diags)
 	{
-		std::cout << "transform_time: " << transform_time << "ms" << std::endl;
-		std::cout << "partition_time: " << partition_time << "ms" << std::endl;
-		std::cout << "sort_time: " << sort_time << "ms" << std::endl;
-		std::cout << "reduce_time: " << reduce_time << "ms" << std::endl;
-		std::cout << "update_time: " << update_time << "ms" << std::endl;
+		std::cout << "window_average> transform_time: " << transform_time << "ms" << std::endl;
+		std::cout << "window_average> partition_time: " << partition_time << "ms" << std::endl;
+		std::cout << "window_average> sort_time: " << sort_time << "ms" << std::endl;
+		std::cout << "window_average> reduce_time: " << reduce_time << "ms" << std::endl;
+		std::cout << "window_average> update_time: " << update_time << "ms" << std::endl;
 	}
 }
