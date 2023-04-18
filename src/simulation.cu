@@ -83,7 +83,7 @@ __global__ void simulate(float max_time, int trajectories_count, int trajectory_
 		else
 			time += -logf(curand_uniform(&rand)) / total_rate;
 
-		trajectory_states[step] = state & ~internals_mask;
+		trajectory_states[step] = state;
 		trajectory_times[step] = time;
 		step++;
 

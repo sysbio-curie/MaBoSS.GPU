@@ -2,6 +2,7 @@
 #include <map>
 #include <vector>
 
+#include "cfg_config.h.generated"
 #include "simulation_runner.h"
 #include "statistics.h"
 
@@ -18,7 +19,7 @@ int main()
 
 	auto do_stats = [&](thrust::device_ptr<size_t> states, thrust::device_ptr<float> times, int n_trajectories,
 						int trajectory_len_limit) {
-		window_average(res, window_size, max_time, states, times, n_trajectories, trajectory_len_limit);
+		window_average(res, window_size, max_time, internals_mask, states, times, n_trajectories, trajectory_len_limit);
 	};
 
 	r.run_simulation(do_stats);

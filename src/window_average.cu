@@ -24,14 +24,14 @@ struct in_window_functor
 	}
 };
 
-void window_average(wnd_prob_t& window_averages, float window_size, float max_time,
+void window_average(wnd_prob_t& window_averages, float window_size, float max_time, size_t internal_mask,
 					thrust::device_ptr<size_t> traj_states, thrust::device_ptr<float> traj_times, size_t max_traj_len,
 					size_t n_trajectories)
 {
 	size_t windows_count = std::ceil(max_time / window_size);
 
 	timer t;
-	long long slices_time = 0.f, count_time = 0.f, partition_time = 0.f, sort_time = 0.f, reduce_time = 0.f,
+	long long transform_time = 0.f, count_time = 0.f, partition_time = 0.f, sort_time = 0.f, reduce_time = 0.f,
 			  update_time = 0.f;
 
 	t.start();
@@ -43,9 +43,13 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	thrust::transform(traj_times, traj_times + n_trajectories * max_traj_len, traj_time_starts.begin(),
 					  traj_time_starts.begin(), thrust::minus<float>());
 
+	// and mask internal nodes
+	thrust::transform(traj_states, traj_states + n_trajectories * max_traj_len, traj_states,
+					  [internal_mask] __device__(size_t s) { return s & ~internal_mask; });
+
 	t.stop();
 
-	slices_time = t.millisecs();
+	transform_time = t.millisecs();
 
 	// begin and end of the whole traj batch
 	auto begin = thrust::make_zip_iterator(traj_states, traj_time_starts.begin(), traj_times);
@@ -221,7 +225,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 	if (print_diags)
 	{
-		std::cout << "slices_time: " << slices_time << "ms" << std::endl;
+		std::cout << "transform_time: " << transform_time << "ms" << std::endl;
 		std::cout << "partition_time: " << partition_time << "ms" << std::endl;
 		std::cout << "sort_time: " << sort_time << "ms" << std::endl;
 		std::cout << "reduce_time: " << reduce_time << "ms" << std::endl;
