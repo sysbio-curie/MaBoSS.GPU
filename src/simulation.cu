@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
+#include "cfg_config.h.generated"
 #include "simulation.h"
 #include "transition_rates.cu.generated"
 

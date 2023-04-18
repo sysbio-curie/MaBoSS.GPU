@@ -1,0 +1,4 @@
+#pragma once
+
+constexpr int states_count = 10;
+constexpr size_t internals_mask = 1008;

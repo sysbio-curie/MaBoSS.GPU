@@ -1,5 +1,3 @@
-constexpr int states_count = 10;
-constexpr size_t internals_mask = 1008;
 
 __device__ float CycD_rate(size_t state)
 {

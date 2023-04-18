@@ -27,8 +27,10 @@ def get_internals_mask(nodes, cfg):
     return mask
 
 
-def generate_header(nodes, cfg):
-    return f'''constexpr int states_count = {len(nodes)};
+def generate_header_file(nodes, cfg):
+    return f'''#pragma once
+
+constexpr int states_count = {len(nodes)};
 constexpr size_t internals_mask = {get_internals_mask(nodes, cfg)};
 '''
 
@@ -67,7 +69,7 @@ __device__ float {node_name}_rate(size_t state)
 '''
 
 
-def generate_kernel(bnd_stream, cfg_stream, out_file):
+def generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -85,10 +87,7 @@ def generate_kernel(bnd_stream, cfg_stream, out_file):
         if type(declaration) is VarDeclaration:
             variables[declaration.name] = declaration.evaluate(variables)
 
-    f = open(out_file, "w")
-
-    # generate header
-    f.write(generate_header(nodes, cfg_program))
+    f = open(out_cu_file, "w")
 
     # generate transition functions
     for node in nodes:
@@ -99,19 +98,27 @@ def generate_kernel(bnd_stream, cfg_stream, out_file):
 
     f.close()
 
+    f = open(out_h_file, "w")
+
+    # generate header
+    f.write(generate_header_file(nodes, cfg_program))
+
+    f.close()
+
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
-        print('Usage: python generator.py <bnd_file> <cfg_file> <out_file>')
+    if len(sys.argv) != 5:
+        print('Usage: python generator.py <bnd_file> <cfg_file> <out_cu_file> <out_h_file>')
         exit(1)
 
     bnd_file = sys.argv[1]
     cfg_file = sys.argv[2]
-    out_file = sys.argv[3]
+    out_cu_file = sys.argv[3]
+    out_h_file = sys.argv[4]
 
     with open(bnd_file, 'r') as bnd:
         bnd_stream = bnd.read()
     with open(cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_kernel(bnd_stream, cfg_stream, out_file)
+    generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file)
