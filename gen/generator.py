@@ -27,13 +27,47 @@ def get_internals(nodes, cfg):
     return arr
 
 
+def get_free_and_fixed_vars(nodes, cfg):
+    initials = []
+
+    for decl in cfg:
+        if type(decl) == AttrDeclaration:
+            # TODO here we expect that isstate expression is a constant
+            if decl.attr == 'istate':
+                initials.append((decl.name, decl.expr.evaluate({})))
+
+    fixed_vars = set()
+
+    fixed = []
+
+    for state in initials:
+        idx = [node.name for node in nodes].index(state[0])
+        fixed_vars.add(idx)
+        fixed.append(f'{{{idx}, {"true" if state[1] != 0 else "false"}}}')
+
+    free_vars = set(range(len(nodes))).difference(fixed_vars)
+
+    free = [str(x) for x in free_vars]
+
+    return fixed, free
+
+
 def generate_header_file(nodes, cfg):
     internals = get_internals(nodes, cfg)
+    fixed, free = get_free_and_fixed_vars(nodes, cfg)
     return f'''#pragma once
-#include "state.h"
+#include <utility>
 
 constexpr int states_count = {len(nodes)};
-constexpr int internals[{len(internals)}] = {{ {', '.join(internals)} }};
+
+constexpr int internals_count = {len(internals)};
+constexpr int internals[{max(len(internals), 1)}] = {{ {', '.join(internals) if len(internals) != 0 else '0'} }};
+
+constexpr int fixed_vars_count = {len(fixed)};
+constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(fixed) if len(fixed) != 0 else '0'} }};
+
+constexpr int free_vars_count = {len(free)};
+constexpr int free_vars[{max(len(free), 1)}] = {{ {', '.join(free) if len(free) != 0 else '0'} }};
 '''
 
 

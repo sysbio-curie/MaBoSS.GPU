@@ -13,12 +13,23 @@ int main()
 	float max_time = 5.f;
 	float window_size = 0.2f;
 
-	state_t internals_mask;
+	state_t internals_mask, fixed_part, free_mask;
 
-	for (auto internal : internals)
-		internals_mask |= state_t(internal);
+	for (int i = 0; i < internals_count; i++)
+		internals_mask |= state_t(internals[i]);
 
-	simulation_runner r(trajs, 1234, max_time);
+	for (int i = 0; i < fixed_vars_count; i++)
+	{
+		auto [bit, val] = fixed_vars[i];
+
+		if (val)
+			fixed_part.set(bit);
+	}
+
+	for (int i = 0; i < free_vars_count; i++)
+		free_mask |= state_t(free_vars[i]);
+
+	simulation_runner r(trajs, 1234, fixed_part, free_mask, max_time);
 
 	wnd_prob_t res;
 

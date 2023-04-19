@@ -52,6 +52,14 @@ struct state_t_template
 		data[word_idx] |= (1 << bit_idx);
 	}
 
+	constexpr void unset(int bit)
+	{
+		auto word_idx = bit / word_size;
+		auto bit_idx = bit % word_size;
+
+		data[word_idx] &= ~(1 << bit_idx);
+	}
+
 	constexpr void flip(int bit)
 	{
 		auto word_idx = bit / word_size;

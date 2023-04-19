@@ -18,10 +18,12 @@ class simulation_runner
 	seed_t seed_;
 	float max_time_;
 
+	state_t fixed_initial_part_, free_mask_;
+
 	int trajectory_len_limit_;
 
 public:
-	simulation_runner(int n_trajectories, seed_t seed, float max_time);
+	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time);
 
 	void run_simulation(statistics_func_t run_statistics);
 };

@@ -1,5 +1,13 @@
 #pragma once
-#include "state.h"
+#include <utility>
 
 constexpr int states_count = 10;
+
+constexpr int internals_count = 6;
 constexpr int internals[6] = { 4, 5, 6, 7, 8, 9 };
+
+constexpr int fixed_vars_count = 10;
+constexpr std::pair<int, bool> fixed_vars[10] = { {0, true}, {1, false}, {2, false}, {3, false}, {4, false}, {5, false}, {6, false}, {7, false}, {8, false}, {9, true} };
+
+constexpr int free_vars_count = 0;
+constexpr int free_vars[1] = { 0 };

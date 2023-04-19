@@ -20,8 +20,13 @@ struct eq_ftor
 	__device__ bool operator()(T other) { return other == it; }
 };
 
-simulation_runner::simulation_runner(int n_trajectories, seed_t seed, float max_time)
-	: n_trajectories_(n_trajectories), seed_(seed), max_time_(max_time)
+simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask,
+									 float max_time)
+	: n_trajectories_(n_trajectories),
+	  seed_(seed),
+	  fixed_initial_part_(fixed_initial_part),
+	  free_mask_(free_mask),
+	  max_time_(max_time)
 {
 	trajectory_len_limit_ = 100; // TODO compute limit according to the available mem
 }
@@ -39,7 +44,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 	auto d_traj_lengths = thrust::device_malloc<int>(n_trajectories_ * trajectory_len_limit_);
 
 	// initialize states
-	run_initialize(n_trajectories_, seed_, d_last_states.get(), d_last_times.get(), d_rands.get());
+	run_initialize(n_trajectories_, seed_, fixed_initial_part_, free_mask_, d_last_states.get(), d_last_times.get(),
+				   d_rands.get());
 
 	timer t;
 	long long simulation_time = 0.f, preparation_time = 0.f;

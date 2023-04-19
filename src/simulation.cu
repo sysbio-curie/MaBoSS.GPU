@@ -23,8 +23,8 @@ __device__ int select_flip_bit(const float* __restrict__ transition_rates, float
 	return states_count - 1;
 }
 
-__global__ void initialize(int trajectories_count, unsigned long long seed, state_t* __restrict__ states,
-						   float* __restrict__ times, curandState* __restrict__ rands)
+__global__ void initialize(int trajectories_count, unsigned long long seed, state_t fixed_part, state_t free_mask,
+						   state_t* __restrict__ states, float* __restrict__ times, curandState* __restrict__ rands)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -33,12 +33,15 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, stat
 	// initialize random number generator
 	curand_init(seed, id, 0, rands + id);
 
-	// randomize initial states TODO mask out fixed bits
-	state_t s;
-	for (int i = 0; i < states_count; i++)
+	// initialize state
+	state_t s = fixed_part;
 	{
-		if (curand_uniform(rands + id) > 0.5f)
-			s.set(i);
+		// randomly set free vars
+		for (int i = 0; i < states_count; i++)
+		{
+			if (free_mask.is_set(i) && curand_uniform(rands + id) > 0.5f)
+				s.set(i);
+		}
 	}
 	states[id] = s;
 
@@ -48,9 +51,11 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, stat
 	times[id] = 0.f;
 }
 
-void run_initialize(int trajectories_count, unsigned long long seed, state_t* states, float* times, curandState* rands)
+void run_initialize(int trajectories_count, unsigned long long seed, state_t fixed_part, state_t free_mask,
+					state_t* states, float* times, curandState* rands)
 {
-	initialize<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, states, times, rands);
+	initialize<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, fixed_part, free_mask, states, times,
+														 rands);
 }
 
 __global__ void simulate(float max_time, int trajectories_count, int trajectory_limit,
