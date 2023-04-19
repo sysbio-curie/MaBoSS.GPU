@@ -20,10 +20,10 @@ tokens = (
 literals = ['+', '-', '*', '/', '<', '>',
             '?', ':', '}', '{', ';', '=', '(', ')']
 
-t_AND = r'(&)|(&&)|((?i)AND)'
-t_OR = r'(\|)|(\|\|)|((?i)OR)'
-t_XOR = r'(\^)|((?i)XOR)'
-t_NOT = r'(!)|((?i)NOT)'
+t_AND = r'(&)|(&&)'
+t_OR = r'(\|)|(\|\|)'
+t_XOR = r'\^'
+t_NOT = r'!'
 t_LE = r'<='
 t_GE = r'>='
 t_EQ = r'=='
@@ -39,11 +39,19 @@ def t_IDENTIFIER(t):
     r'[a-zA-Z_][a-zA-Z_0-9]*'
     if t.value.lower() == 'node':
         t.type = 'NODE'
+    elif t.value.lower() == 'and':
+        t.type = 'AND'
+    elif t.value.lower() == 'or':
+        t.type = 'OR'
+    elif t.value.lower() == 'xor':
+        t.type = 'XOR'
+    elif t.value.lower() == 'not':
+        t.type = 'NOT'
     return t
 
 
 def t_REAL(t):
-    r'[0-9]*\.[0-9]+'
+    r'([0-9]+\.[0-9]+)|(\.[0-9]+)|([0-9]+\.)'
     t.value = float(t.value)
     return t
 

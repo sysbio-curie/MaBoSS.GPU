@@ -71,7 +71,10 @@ class UnExpr(NamedTuple):
             raise ValueError('Unknown unary operator: ' + self.op)
 
     def generate_code(self, variables, nodes, curr_node):
-        return f"{self.op}{self.expr.generate_code(variables, nodes, curr_node)}"
+        mod_op = self.op
+        if self.op.lower() == 'not':
+            mod_op = '!'
+        return f"{mod_op}{self.expr.generate_code(variables, nodes, curr_node)}"
 
 
 class TernExpr(NamedTuple):
@@ -121,7 +124,7 @@ class Alias(NamedTuple):
     name: str
 
     def generate_code(self, variables, nodes, curr_node):
-        return curr_node.attributes[self.name].generate_code(variables, nodes, curr_node)
+        return '(' + curr_node.attributes[self.name].generate_code(variables, nodes, curr_node) + ')'
 
 
 class Lit(NamedTuple):

@@ -79,7 +79,7 @@ def generate_cfg_header_file(nodes, cfg):
     return f'''#pragma once
 #include <utility>
 
-constexpr char* nodes[{len(nodes)}] = {{ {', '.join(['"' + node.name + '"' for node in nodes])} }};
+constexpr const char* nodes[{len(nodes)}] = {{ {', '.join(['"' + node.name + '"' for node in nodes])} }};
 
 constexpr int internals_count = {len(internals)};
 constexpr int internals[{max(len(internals), 1)}] = {{ {', '.join(internals) if len(internals) != 0 else '0'} }};

@@ -6,6 +6,27 @@
 #include "simulation_runner.h"
 #include "statistics.h"
 
+std::string state_to_str(const state_t& s)
+{
+	bool first = true;
+	std::string name;
+	for (int i = 0; i < states_count; i++)
+	{
+		if (s.is_set(i))
+		{
+			if (!first)
+				name += "-";
+			first = false;
+			name += nodes[i];
+		}
+	}
+
+	if (name.empty())
+		name = "<0>";
+
+	return name;
+}
+
 int main()
 {
 	int trajs = sample_count;
@@ -44,7 +65,7 @@ int main()
 		std::cout << "window " << i << std::endl;
 		for (auto& [state, time] : res[i])
 		{
-			std::cout << state.data[0] << " " << time / (trajs * window_size) << std::endl;
+			std::cout << state_to_str(state) << " " << time / (trajs * window_size) << std::endl;
 		}
 	}
 

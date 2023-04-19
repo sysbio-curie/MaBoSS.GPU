@@ -3,71 +3,71 @@
 __device__ float CycD_rate(const state_t& state)
 {
     return state.is_set(0) ? 
-        (state.is_set(0) ? 0.0 : 10) : 
-        (state.is_set(0) ? 10 : 0.0);
+        ((state.is_set(0)) ? 0.0 : 10) : 
+        ((state.is_set(0)) ? 10 : 0.0);
 }
 
 __device__ float CycE_rate(const state_t& state)
 {
     return state.is_set(1) ? 
-        (!state.is_set(4) && state.is_set(5) ? 0.0 : 10) : 
-        (!state.is_set(4) && state.is_set(5) ? 1 : 0.0);
+        ((!state.is_set(4) && state.is_set(5)) ? 0.0 : 10) : 
+        ((!state.is_set(4) && state.is_set(5)) ? 1 : 0.0);
 }
 
 __device__ float CycA_rate(const state_t& state)
 {
     return state.is_set(2) ? 
-        (!state.is_set(4) && !state.is_set(7) && !(state.is_set(8) && state.is_set(9)) && (state.is_set(2) || state.is_set(5)) ? 0.0 : 10) : 
-        (!state.is_set(4) && !state.is_set(7) && !(state.is_set(8) && state.is_set(9)) && (state.is_set(2) || state.is_set(5)) ? 1 : 0.0);
+        ((!state.is_set(4) && !state.is_set(7) && !(state.is_set(8) && state.is_set(9)) && (state.is_set(2) || state.is_set(5))) ? 0.0 : 10) : 
+        ((!state.is_set(4) && !state.is_set(7) && !(state.is_set(8) && state.is_set(9)) && (state.is_set(2) || state.is_set(5))) ? 1 : 0.0);
 }
 
 __device__ float CycB_rate(const state_t& state)
 {
     return state.is_set(3) ? 
-        (!state.is_set(7) && !state.is_set(9) ? 0.0 : 10) : 
-        (!state.is_set(7) && !state.is_set(9) ? 1 : 0.0);
+        ((!state.is_set(7) && !state.is_set(9)) ? 0.0 : 10) : 
+        ((!state.is_set(7) && !state.is_set(9)) ? 1 : 0.0);
 }
 
 __device__ float Rb_rate(const state_t& state)
 {
     return state.is_set(4) ? 
-        (!state.is_set(0) && !state.is_set(3) && (state.is_set(6) || !(state.is_set(2) || state.is_set(1))) ? 0.0 : 10) : 
-        (!state.is_set(0) && !state.is_set(3) && (state.is_set(6) || !(state.is_set(2) || state.is_set(1))) ? 10 : 0.0);
+        ((!state.is_set(0) && !state.is_set(3) && (state.is_set(6) || !(state.is_set(2) || state.is_set(1)))) ? 0.0 : 10) : 
+        ((!state.is_set(0) && !state.is_set(3) && (state.is_set(6) || !(state.is_set(2) || state.is_set(1)))) ? 10 : 0.0);
 }
 
 __device__ float E2F_rate(const state_t& state)
 {
     return state.is_set(5) ? 
-        (!state.is_set(4) && !state.is_set(3) && (!state.is_set(2) || state.is_set(6)) ? 0.0 : 10) : 
-        (!state.is_set(4) && !state.is_set(3) && (!state.is_set(2) || state.is_set(6)) ? 1 : 0.0);
+        ((!state.is_set(4) && !state.is_set(3) && (!state.is_set(2) || state.is_set(6))) ? 0.0 : 10) : 
+        ((!state.is_set(4) && !state.is_set(3) && (!state.is_set(2) || state.is_set(6))) ? 1 : 0.0);
 }
 
 __device__ float p27_rate(const state_t& state)
 {
     return state.is_set(6) ? 
-        (!state.is_set(0) && !state.is_set(3) && (!(state.is_set(2) || state.is_set(1)) || (state.is_set(6) && !(state.is_set(1) && state.is_set(2)))) ? 0.0 : 10) : 
-        (!state.is_set(0) && !state.is_set(3) && (!(state.is_set(2) || state.is_set(1)) || (state.is_set(6) && !(state.is_set(1) && state.is_set(2)))) ? 10 : 0.0);
+        ((!state.is_set(0) && !state.is_set(3) && (!(state.is_set(2) || state.is_set(1)) || (state.is_set(6) && !(state.is_set(1) && state.is_set(2))))) ? 0.0 : 10) : 
+        ((!state.is_set(0) && !state.is_set(3) && (!(state.is_set(2) || state.is_set(1)) || (state.is_set(6) && !(state.is_set(1) && state.is_set(2))))) ? 10 : 0.0);
 }
 
 __device__ float Cdc20_rate(const state_t& state)
 {
     return state.is_set(7) ? 
-        (state.is_set(3) ? 0.0 : 10) : 
-        (state.is_set(3) ? 1 : 0.0);
+        ((state.is_set(3)) ? 0.0 : 10) : 
+        ((state.is_set(3)) ? 1 : 0.0);
 }
 
 __device__ float UbcH10_rate(const state_t& state)
 {
     return state.is_set(8) ? 
-        ((!(state.is_set(9) && !state.is_set(8)) && (state.is_set(2) || state.is_set(3))) || (!state.is_set(2) && !state.is_set(3) && (!state.is_set(9) || (state.is_set(7) && state.is_set(8)))) ? 0.0 : 10) : 
-        ((!(state.is_set(9) && !state.is_set(8)) && (state.is_set(2) || state.is_set(3))) || (!state.is_set(2) && !state.is_set(3) && (!state.is_set(9) || (state.is_set(7) && state.is_set(8)))) ? 1 : 0.0);
+        (((!(state.is_set(9) && !state.is_set(8)) && (state.is_set(2) || state.is_set(3))) || (!state.is_set(2) && !state.is_set(3) && (!state.is_set(9) || (state.is_set(7) && state.is_set(8))))) ? 0.0 : 10) : 
+        (((!(state.is_set(9) && !state.is_set(8)) && (state.is_set(2) || state.is_set(3))) || (!state.is_set(2) && !state.is_set(3) && (!state.is_set(9) || (state.is_set(7) && state.is_set(8))))) ? 1 : 0.0);
 }
 
 __device__ float cdh1_rate(const state_t& state)
 {
     return state.is_set(9) ? 
-        (state.is_set(7) || (!state.is_set(3) && (!state.is_set(2) || state.is_set(6))) ? 0.0 : 10) : 
-        (state.is_set(7) || (!state.is_set(3) && (!state.is_set(2) || state.is_set(6))) ? 10 : 0.0);
+        ((state.is_set(7) || (!state.is_set(3) && (!state.is_set(2) || state.is_set(6)))) ? 0.0 : 10) : 
+        ((state.is_set(7) || (!state.is_set(3) && (!state.is_set(2) || state.is_set(6)))) ? 10 : 0.0);
 }
 
 __device__ void compute_transition_rates(float* __restrict__ transition_rates, const state_t& state)
