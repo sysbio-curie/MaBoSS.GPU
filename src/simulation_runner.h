@@ -16,14 +16,16 @@ class simulation_runner
 {
 	int n_trajectories_;
 	seed_t seed_;
-	float max_time_;
+	float max_time_, time_tick_;
+	bool discrete_time_;
 
 	state_t fixed_initial_part_, free_mask_;
 
 	int trajectory_len_limit_;
 
 public:
-	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time);
+	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time,
+					  float time_tick, bool discrete_time);
 
 	void run_simulation(statistics_func_t run_statistics);
 };

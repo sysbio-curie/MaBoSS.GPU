@@ -28,7 +28,7 @@ int main()
 	for (int i = 0; i < free_vars_count; i++)
 		free_mask |= state_t(free_vars[i]);
 
-	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time);
+	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time);
 
 	wnd_prob_t res;
 

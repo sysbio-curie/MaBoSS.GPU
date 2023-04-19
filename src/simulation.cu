@@ -58,7 +58,8 @@ void run_initialize(int trajectories_count, unsigned long long seed, state_t fix
 														 rands);
 }
 
-__global__ void simulate(float max_time, int trajectories_count, int trajectory_limit,
+template <bool discrete_time>
+__global__ void simulate(float max_time, float time_tick, int trajectories_count, int trajectory_limit,
 						 state_t* __restrict__ last_states, float* __restrict__ last_times,
 						 curandState* __restrict__ rands, state_t* __restrict__ trajectory_states,
 						 float* __restrict__ trajectory_times, int* __restrict__ trajectory_lengths)
@@ -91,7 +92,12 @@ __global__ void simulate(float max_time, int trajectories_count, int trajectory_
 		if (total_rate == 0.f)
 			time = max_time;
 		else
-			time += -logf(curand_uniform(&rand)) / total_rate;
+		{
+			if constexpr (discrete_time)
+				time += time_tick;
+			else
+				time += -logf(curand_uniform(&rand)) / total_rate;
+		}
 
 		trajectory_states[step] = state;
 		trajectory_times[step] = time;
@@ -113,10 +119,16 @@ __global__ void simulate(float max_time, int trajectories_count, int trajectory_
 	trajectory_lengths[id] = step;
 }
 
-void run_simulate(float max_time, int trajectories_count, int trajectory_limit, state_t* last_states, float* last_times,
-				  curandState* rands, state_t* trajectory_states, float* trajectory_times, int* trajectory_lengths)
+void run_simulate(float max_time, float time_tick, bool discrete_time, int trajectories_count, int trajectory_limit,
+				  state_t* last_states, float* last_times, curandState* rands, state_t* trajectory_states,
+				  float* trajectory_times, int* trajectory_lengths)
 {
-	simulate<<<DIV_UP(trajectories_count, 256), 256>>>(max_time, trajectories_count, trajectory_limit, last_states,
-													   last_times, rands, trajectory_states, trajectory_times,
-													   trajectory_lengths);
+	if (discrete_time)
+		simulate<true><<<DIV_UP(trajectories_count, 256), 256>>>(
+			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
+			trajectory_states, trajectory_times, trajectory_lengths);
+	else
+		simulate<false><<<DIV_UP(trajectories_count, 256), 256>>>(
+			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
+			trajectory_states, trajectory_times, trajectory_lengths);
 }

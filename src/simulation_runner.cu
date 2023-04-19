@@ -21,12 +21,14 @@ struct eq_ftor
 };
 
 simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask,
-									 float max_time)
+									 float max_time, float time_tick, bool discrete_time)
 	: n_trajectories_(n_trajectories),
 	  seed_(seed),
+	  max_time_(max_time),
+	  time_tick_(time_tick),
+	  discrete_time_(discrete_time),
 	  fixed_initial_part_(fixed_initial_part),
-	  free_mask_(free_mask),
-	  max_time_(max_time)
+	  free_mask_(free_mask)
 {
 	trajectory_len_limit_ = 100; // TODO compute limit according to the available mem
 }
@@ -55,8 +57,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		t.start();
 
 		// run single simulation
-		run_simulate(max_time_, n_trajectories_, trajectory_len_limit_, d_last_states.get(), d_last_times.get(),
-					 d_rands.get(), d_traj_states.get(), d_traj_times.get(), d_traj_lengths.get());
+		run_simulate(max_time_, time_tick_, discrete_time_, n_trajectories_, trajectory_len_limit_, d_last_states.get(),
+					 d_last_times.get(), d_rands.get(), d_traj_states.get(), d_traj_times.get(), d_traj_lengths.get());
 
 		CUDA_CHECK(cudaDeviceSynchronize());
 
