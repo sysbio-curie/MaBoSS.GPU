@@ -77,6 +77,9 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 	int step = 0;
 	trajectory_states = trajectory_states + id * trajectory_limit;
 	trajectory_times = trajectory_times + id * trajectory_limit;
+	
+	// as the first time set the last from the prev run
+	trajectory_times[step++] = time; 
 
 	while (true)
 	{

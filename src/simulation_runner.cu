@@ -49,6 +49,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 	run_initialize(n_trajectories_, seed_, fixed_initial_part_, free_mask_, d_last_states.get(), d_last_times.get(),
 				   d_rands.get());
 
+	CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, n_trajectories_ * trajectory_len_limit_ * sizeof(float)));
+
 	timer t;
 	long long simulation_time = 0.f, preparation_time = 0.f;
 
@@ -66,7 +68,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		simulation_time += t.millisecs();
 
 		// compute statistics over the simulated trajs
-		run_statistics(d_traj_states, d_traj_times, n_trajectories_, trajectory_len_limit_);
+		run_statistics(d_traj_states, d_traj_times, trajectory_len_limit_, n_trajectories_);
 
 		// prepare for the next iteration
 		{

@@ -85,7 +85,7 @@ constexpr int internals_count = {len(internals)};
 constexpr int internals[{max(len(internals), 1)}] = {{ {', '.join(internals) if len(internals) != 0 else '0'} }};
 
 constexpr int fixed_vars_count = {len(fixed)};
-constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(fixed) if len(fixed) != 0 else '0'} }};
+constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(fixed) if len(fixed) != 0 else ''} }};
 
 constexpr int free_vars_count = {len(free)};
 constexpr int free_vars[{max(len(free), 1)}] = {{ {', '.join(free) if len(free) != 0 else '0'} }};

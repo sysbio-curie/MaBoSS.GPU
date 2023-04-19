@@ -1,10 +1,10 @@
 #pragma once
-
-constexpr size_t word_size = 32;
+#include <string>
 
 template <size_t bits>
 struct state_t_template
 {
+	static constexpr size_t word_size = 32;
 	static constexpr size_t words_n = (bits + word_size - 1) / word_size;
 
 	uint32_t data[words_n] = { 0 };
@@ -130,3 +130,25 @@ struct state_t_template
 		return ret;
 	}
 };
+
+template <size_t bits>
+std::string state_to_str(const state_t_template<bits>& s, const char* const* names)
+{
+	bool first = true;
+	std::string name;
+	for (int i = 0; i < states_count; i++)
+	{
+		if (s.is_set(i))
+		{
+			if (!first)
+				name += "-";
+			first = false;
+			name += names[i];
+		}
+	}
+
+	if (name.empty())
+		name = "<nil>";
+
+	return name;
+}

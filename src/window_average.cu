@@ -1,5 +1,6 @@
 #include <thrust/adjacent_difference.h>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
 #include <thrust/partition.h>
 #include <thrust/sort.h>
 #include <thrust/unique.h>
@@ -37,11 +38,15 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	t.start();
 
 	// since traj_times does not contain time slices, but the timepoints of transitions,
-	// we compute a beginning for each timepoint for convenience
+	// we materialize a beginning for each timepoint for convenience
 	thrust::device_vector<float> traj_time_starts(n_trajectories * max_traj_len);
-	thrust::adjacent_difference(traj_times, traj_times + n_trajectories * max_traj_len, traj_time_starts.begin());
-	thrust::transform(traj_times, traj_times + n_trajectories * max_traj_len, traj_time_starts.begin(),
-					  traj_time_starts.begin(), thrust::minus<float>());
+	thrust::copy(traj_times, traj_times + n_trajectories * max_traj_len - 1, traj_time_starts.begin() + 1);
+
+	// this needs to be done because the begining of each traj has the last time from the previous batch
+	// this first element is required so we properly compute traj_time_starts
+	thrust::for_each(
+		thrust::device, thrust::make_counting_iterator(0), thrust::make_counting_iterator(n_trajectories),
+		[traj_times = traj_times.get(), max_traj_len] __device__(int i) { traj_times[i * max_traj_len] = 0.f; });
 
 	// and mask internal nodes
 	thrust::transform(traj_states, traj_states + n_trajectories * max_traj_len, traj_states,
@@ -110,10 +115,10 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	thrust::device_vector<float> batch_time_starts, batch_time_ends;
 
 	// we compute a batch of windows at a time
-	for (int i = 0; i < batch_indices.size() - 1; i++)
+	for (int batch_i = 0; batch_i < batch_indices.size() - 1; batch_i++)
 	{
-		size_t batch_idx_begin = batch_indices[i];
-		size_t batch_idx_end = batch_indices[i + 1];
+		size_t batch_idx_begin = batch_indices[batch_i];
+		size_t batch_idx_end = batch_indices[batch_i + 1];
 		size_t batch_size = windows_sizes[batch_idx_end] - windows_sizes[batch_idx_begin];
 
 		batch_states.resize(batch_size);
