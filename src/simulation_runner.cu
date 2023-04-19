@@ -86,6 +86,11 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 			t.stop();
 			preparation_time += t.millisecs();
+
+			if (print_diags)
+			{
+				std::cout << "simulation_runner> remaining trajs: " << n_trajectories_ << std::endl;
+			}
 		}
 	}
 
