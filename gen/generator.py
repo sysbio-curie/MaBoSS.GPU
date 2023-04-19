@@ -52,9 +52,24 @@ def get_free_and_fixed_vars(nodes, cfg):
     return fixed, free
 
 
+def get_constant(name, cfg):
+    for decl in cfg:
+        if type(decl) == ConstantDeclaration:
+            if decl.name == name:
+                return decl.expr.evaluate({})
+
+    return None
+
+
 def generate_header_file(nodes, cfg):
     internals = get_internals(nodes, cfg)
     fixed, free = get_free_and_fixed_vars(nodes, cfg)
+    max_time = get_constant('max_time', cfg)
+    time_tick = get_constant('time_tick', cfg)
+    seed = get_constant('seed_pseudorandom', cfg)
+    discrete_time = get_constant('discrete_time', cfg)
+    sample_count = get_constant('sample_count', cfg)
+
     return f'''#pragma once
 #include <utility>
 
@@ -68,6 +83,12 @@ constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(
 
 constexpr int free_vars_count = {len(free)};
 constexpr int free_vars[{max(len(free), 1)}] = {{ {', '.join(free) if len(free) != 0 else '0'} }};
+
+constexpr float max_time = (float){max_time if max_time is not None else 10};
+constexpr float time_tick = (float){time_tick if time_tick is not None else 1};
+constexpr unsigned long long seed = {seed if seed is not None else 0};
+constexpr bool discrete_time = {'true' if discrete_time == 1 else 'false'};
+constexpr int sample_count = {sample_count if sample_count is not None else 1000000};
 '''
 
 

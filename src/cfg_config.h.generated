@@ -11,3 +11,9 @@ constexpr std::pair<int, bool> fixed_vars[10] = { {0, true}, {1, false}, {2, fal
 
 constexpr int free_vars_count = 0;
 constexpr int free_vars[1] = { 0 };
+
+constexpr float max_time = (float)5;
+constexpr float time_tick = (float)0.2;
+constexpr unsigned long long seed = 100;
+constexpr bool discrete_time = true;
+constexpr int sample_count = 1000000;

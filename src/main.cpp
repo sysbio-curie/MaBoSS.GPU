@@ -8,10 +8,9 @@
 
 int main()
 {
-	int trajs = 1'000'000;
+	int trajs = sample_count;
 
-	float max_time = 5.f;
-	float window_size = 0.2f;
+	float window_size = time_tick;
 
 	state_t internals_mask, fixed_part, free_mask;
 
@@ -29,7 +28,7 @@ int main()
 	for (int i = 0; i < free_vars_count; i++)
 		free_mask |= state_t(free_vars[i]);
 
-	simulation_runner r(trajs, 1234, fixed_part, free_mask, max_time);
+	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time);
 
 	wnd_prob_t res;
 
