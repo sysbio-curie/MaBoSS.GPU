@@ -135,7 +135,47 @@ __device__ float {node_name}_rate(const state_t& state)
 '''
 
 
-def generate_kernel(bnd_stream, cfg_stream):
+def generate_if_newer(path, content):
+    with open(path, 'r') as f:
+        old_content = f.read()
+
+    if content != old_content:
+        with open(path, 'w') as f:
+            f.write(content)
+
+
+def generate_tr_cu_file(tr_cu_file, nodes, variables):
+    tr_cu_path = 'src/' + tr_cu_file
+
+    content = generate_heading()
+
+    # generate transition functions
+    for node in nodes:
+        content += generate_node_transition_fuction(node, nodes, variables)
+
+    # generate aggregate function
+    content += generate_aggregate_function(nodes)
+
+    generate_if_newer(tr_cu_path, content)
+
+
+def generate_tr_h_file(tr_h_file, nodes, cfg_program):
+    tr_h_path = 'src/' + tr_h_file
+
+    content = generate_tr_header_file(nodes, cfg_program)
+
+    generate_if_newer(tr_h_path, content)
+
+
+def generate_cfg_file(cfg_file, nodes, cfg_program):
+    cfg_path = 'src/' + cfg_file
+
+    content = generate_cfg_header_file(nodes, cfg_program)
+
+    generate_if_newer(cfg_path, content)
+
+
+def generate_files(bnd_stream, cfg_stream):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -157,37 +197,15 @@ def generate_kernel(bnd_stream, cfg_stream):
     tr_h_file = 'transition_rates.h.generated'
     cfg_file = 'cfg_config.h.generated'
 
-    f = open('src/' + tr_cu_file, "w")
-
-    f.write(generate_heading())
-
-    # generate transition functions
-    for node in nodes:
-        f.write(generate_node_transition_fuction(node, nodes, variables))
-
-    # generate aggregate function
-    f.write(generate_aggregate_function(nodes))
-
-    f.close()
-
-    f = open('src/' + cfg_file, "w")
-
-    # generate header
-    f.write(generate_cfg_header_file(nodes, cfg_program))
-
-    f.close()
-
-    f = open('src/' + tr_h_file, "w")
-
-    # generate header
-    f.write(generate_tr_header_file(nodes, cfg_program))
-
-    f.close()
+    generate_tr_cu_file(tr_cu_file, nodes, variables)
+    generate_tr_h_file(tr_h_file, nodes, cfg_program)
+    generate_cfg_file(cfg_file, nodes, cfg_program)
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print('Usage: python generator.py <bnd_file> <cfg_file>')
+        print('Usage: python gen/generator.py <bnd_file> <cfg_file>')
+        print('Note: This script should be run from the repository root directory')
         exit(1)
 
     bnd_file = sys.argv[1]
@@ -198,4 +216,4 @@ if __name__ == '__main__':
     with open(cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_kernel(bnd_stream, cfg_stream)
+    generate_files(bnd_stream, cfg_stream)
