@@ -52,6 +52,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		run_simulate(max_time_, n_trajectories_, trajectory_len_limit_, d_last_states.get(), d_last_times.get(),
 					 d_rands.get(), d_traj_states.get(), d_traj_times.get(), d_traj_lengths.get());
 
+		CUDA_CHECK(cudaDeviceSynchronize());
+
 		t.stop();
 		simulation_time += t.millisecs();
 
