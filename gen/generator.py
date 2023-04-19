@@ -61,7 +61,13 @@ def get_constant(name, cfg):
     return None
 
 
-def generate_header_file(nodes, cfg):
+def generate_tr_header_file(nodes, cfg):
+    return f'''#pragma once
+constexpr int states_count = {len(nodes)};
+'''
+
+
+def generate_cfg_header_file(nodes, cfg):
     internals = get_internals(nodes, cfg)
     fixed, free = get_free_and_fixed_vars(nodes, cfg)
     max_time = get_constant('max_time', cfg)
@@ -72,8 +78,6 @@ def generate_header_file(nodes, cfg):
 
     return f'''#pragma once
 #include <utility>
-
-constexpr int states_count = {len(nodes)};
 
 constexpr int internals_count = {len(internals)};
 constexpr int internals[{max(len(internals), 1)}] = {{ {', '.join(internals) if len(internals) != 0 else '0'} }};
@@ -131,7 +135,7 @@ __device__ float {node_name}_rate(const state_t& state)
 '''
 
 
-def generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file):
+def generate_kernel(bnd_stream, cfg_stream):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -149,7 +153,11 @@ def generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file):
         if type(declaration) is VarDeclaration:
             variables[declaration.name] = declaration.evaluate(variables)
 
-    f = open(out_cu_file, "w")
+    tr_cu_file = 'transition_rates.cu.generated'
+    tr_h_file = 'transition_rates.h.generated'
+    cfg_file = 'cfg_config.h.generated'
+
+    f = open('src/' + tr_cu_file, "w")
 
     f.write(generate_heading())
 
@@ -162,27 +170,32 @@ def generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file):
 
     f.close()
 
-    f = open(out_h_file, "w")
+    f = open('src/' + cfg_file, "w")
 
     # generate header
-    f.write(generate_header_file(nodes, cfg_program))
+    f.write(generate_cfg_header_file(nodes, cfg_program))
+
+    f.close()
+
+    f = open('src/' + tr_h_file, "w")
+
+    # generate header
+    f.write(generate_tr_header_file(nodes, cfg_program))
 
     f.close()
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5:
-        print('Usage: python generator.py <bnd_file> <cfg_file> <out_cu_file> <out_h_file>')
+    if len(sys.argv) != 3:
+        print('Usage: python generator.py <bnd_file> <cfg_file>')
         exit(1)
 
     bnd_file = sys.argv[1]
     cfg_file = sys.argv[2]
-    out_cu_file = sys.argv[3]
-    out_h_file = sys.argv[4]
 
     with open(bnd_file, 'r') as bnd:
         bnd_stream = bnd.read()
     with open(cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_kernel(bnd_stream, cfg_stream, out_cu_file, out_h_file)
+    generate_kernel(bnd_stream, cfg_stream)
