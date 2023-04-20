@@ -49,17 +49,17 @@ int main()
 
 	for (size_t i = 0; i < res.size(); ++i)
 	{
-		std::cout << "window " << i << std::endl;
+		std::cout << "window [" << i * time_tick << ", " << (i + 1) * time_tick << ")" << std::endl;
 		for (auto& [state, time] : res[i])
 		{
-			std::cout << state_to_str(state, nodes) << " " << time / (trajs * window_size) << std::endl;
+			std::cout << time / (trajs * window_size) << " " << state_to_str(state, nodes) << std::endl;
 		}
 	}
 
 	std::cout << "fixed points:" << std::endl;
 	for (auto& [state, occ] : fp_res)
 	{
-		std::cout << state_to_str(state, nodes) << " " << (float)occ / (float)trajs << std::endl;
+		std::cout << (float)occ / (float)trajs << " " << state_to_str(state, nodes) << std::endl;
 	}
 
 	return 0;
