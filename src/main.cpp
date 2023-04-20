@@ -35,15 +35,14 @@ int main()
 
 	// for fixed points
 	fp_map_t fp_res;
-	size_t fp_totals = 0;
 
 	auto do_stats = [&](thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-						thrust::device_ptr<state_t> last_states, thrust::device_ptr<int> traj_lengths,
+						thrust::device_ptr<state_t> last_states, thrust::device_ptr<float> last_times,
 						int trajectory_len_limit, int n_trajectories) {
 		window_average(res, window_size, max_time, internals_mask, traj_states, traj_times, trajectory_len_limit,
 					   n_trajectories);
 
-		fixed_points(fp_res, fp_totals, last_states, traj_lengths, trajectory_len_limit, n_trajectories);
+		fixed_points(fp_res, last_states, last_times, max_time, n_trajectories);
 	};
 
 	r.run_simulation(do_stats);
@@ -55,6 +54,12 @@ int main()
 		{
 			std::cout << state_to_str(state, nodes) << " " << time / (trajs * window_size) << std::endl;
 		}
+	}
+
+	std::cout << "fixed points:" << std::endl;
+	for (auto& [state, occ] : fp_res)
+	{
+		std::cout << state_to_str(state, nodes) << " " << (float)occ / (float)trajs << std::endl;
 	}
 
 	return 0;

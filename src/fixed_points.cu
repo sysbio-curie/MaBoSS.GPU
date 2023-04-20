@@ -11,24 +11,24 @@
 
 constexpr bool print_diags = false;
 
-void fixed_points(fp_map_t& fixed_points_occurences, size_t& total_occurences, thrust::device_ptr<state_t> last_states,
-				  thrust::device_ptr<int> traj_lengths, int max_traj_len, int n_trajectories)
+void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t> last_states,
+				  thrust::device_ptr<float> last_times, float max_time, int n_trajectories)
 {
 	timer t;
 	float copy_sort_reduce_time = 0.f, update_time = 0.f;
 
 	t.start();
 
-	auto fp_pred = [max_traj_len, traj_lengths] __device__(int len) { return len < max_traj_len; };
+	auto fp_pred = [max_time] __device__(float t) { return t == max_time; };
 
-	size_t finished_trajs_size = thrust::count_if(traj_lengths, traj_lengths + n_trajectories, fp_pred);
+	size_t finished_trajs_size = thrust::count_if(last_times, last_times + n_trajectories, fp_pred);
 
 	if (finished_trajs_size == 0)
 		return;
 
 	thrust::device_vector<state_t> final_states(finished_trajs_size);
 
-	thrust::copy_if(last_states, last_states + n_trajectories, traj_lengths, final_states.begin(), fp_pred);
+	thrust::copy_if(last_states, last_states + n_trajectories, last_times, final_states.begin(), fp_pred);
 
 	thrust::sort(final_states.begin(), final_states.end());
 
@@ -59,8 +59,6 @@ void fixed_points(fp_map_t& fixed_points_occurences, size_t& total_occurences, t
 			fixed_points_occurences[h_unique_fixed_points[i]] += h_unique_fixed_points_count[i];
 		else
 			fixed_points_occurences[h_unique_fixed_points[i]] = h_unique_fixed_points_count[i];
-
-		total_occurences += h_unique_fixed_points_count[i];
 	}
 
 	t.stop();
@@ -71,6 +69,5 @@ void fixed_points(fp_map_t& fixed_points_occurences, size_t& total_occurences, t
 	{
 		std::cout << "fixed_points> copy_sort_reduce_time: " << copy_sort_reduce_time << "ms" << std::endl;
 		std::cout << "fixed_points> update_time: " << update_time << "ms" << std::endl;
-		std::cout << "fixed_points> total occurences: " << total_occurences << std::endl;
 	}
 }

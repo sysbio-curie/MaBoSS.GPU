@@ -68,7 +68,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		simulation_time += t.millisecs();
 
 		// compute statistics over the simulated trajs
-		run_statistics(d_traj_states, d_traj_times, d_last_states, d_traj_lengths, trajectory_len_limit_,
+		run_statistics(d_traj_states, d_traj_times, d_last_states, d_last_times, trajectory_len_limit_,
 					   n_trajectories_);
 
 		// prepare for the next iteration

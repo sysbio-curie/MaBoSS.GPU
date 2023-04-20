@@ -16,5 +16,5 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 using fp_map_t = std::map<state_t, int>;
 
-void fixed_points(fp_map_t& fixed_points, size_t& total_occurences, thrust::device_ptr<state_t> last_states,
-				  thrust::device_ptr<int> traj_lengths, int max_traj_len, int n_trajectories);
+void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t> last_states,
+				  thrust::device_ptr<float> last_times, float max_time, int n_trajectories);
