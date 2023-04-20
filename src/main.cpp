@@ -37,12 +37,12 @@ int main()
 	fp_map_t fp_res;
 
 	auto do_stats = [&](thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-						thrust::device_ptr<state_t> last_states, thrust::device_ptr<float> last_times,
+						thrust::device_ptr<state_t> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
 						int trajectory_len_limit, int n_trajectories) {
 		window_average(res, window_size, max_time, internals_mask, traj_states, traj_times, trajectory_len_limit,
 					   n_trajectories);
 
-		fixed_points(fp_res, last_states, last_times, max_time, n_trajectories);
+		fixed_points(fp_res, last_states, traj_statuses, n_trajectories);
 	};
 
 	r.run_simulation(do_stats);
