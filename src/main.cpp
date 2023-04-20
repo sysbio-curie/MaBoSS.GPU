@@ -30,11 +30,20 @@ int main()
 
 	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time);
 
+	// for window averages
 	wnd_prob_t res;
 
-	auto do_stats = [&](thrust::device_ptr<state_t> states, thrust::device_ptr<float> times, int n_trajectories,
-						int trajectory_len_limit) {
-		window_average(res, window_size, max_time, internals_mask, states, times, n_trajectories, trajectory_len_limit);
+	// for fixed points
+	fp_map_t fp_res;
+	size_t fp_totals = 0;
+
+	auto do_stats = [&](thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+						thrust::device_ptr<state_t> last_states, thrust::device_ptr<int> traj_lengths,
+						int trajectory_len_limit, int n_trajectories) {
+		window_average(res, window_size, max_time, internals_mask, traj_states, traj_times, trajectory_len_limit,
+					   n_trajectories);
+
+		fixed_points(fp_res, fp_totals, last_states, traj_lengths, trajectory_len_limit, n_trajectories);
 	};
 
 	r.run_simulation(do_stats);
