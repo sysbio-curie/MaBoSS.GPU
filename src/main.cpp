@@ -47,20 +47,8 @@ int main()
 
 	r.run_simulation(do_stats);
 
-	for (size_t i = 0; i < res.size(); ++i)
-	{
-		std::cout << "window [" << i * time_tick << ", " << (i + 1) * time_tick << ")" << std::endl;
-		for (auto& [state, time] : res[i])
-		{
-			std::cout << time / (trajs * window_size) << " " << state_to_str(state, nodes) << std::endl;
-		}
-	}
-
-	std::cout << "fixed points:" << std::endl;
-	for (auto& [state, occ] : fp_res)
-	{
-		std::cout << (float)occ / (float)trajs << " " << state_to_str(state, nodes) << std::endl;
-	}
+	window_average_visualize(res, window_size, sample_count, nodes);
+	fixed_points_visualize(fp_res, sample_count, nodes);
 
 	return 0;
 }

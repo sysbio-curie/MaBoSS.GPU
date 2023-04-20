@@ -132,7 +132,7 @@ struct state_t_template
 };
 
 template <size_t bits>
-std::string state_to_str(const state_t_template<bits>& s, const char* const* names)
+std::string to_string(const state_t_template<bits>& s, const char* const* names)
 {
 	bool first = true;
 	std::string name;

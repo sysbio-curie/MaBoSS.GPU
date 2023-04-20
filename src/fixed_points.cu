@@ -71,3 +71,12 @@ void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t>
 		std::cout << "fixed_points> update_time: " << update_time << "ms" << std::endl;
 	}
 }
+
+void fixed_points_visualize(fp_map_t& fixed_points_occurences, int n_trajectories, const char* const* nodes)
+{
+	std::cout << "fixed points:" << std::endl;
+	for (const auto& p : fixed_points_occurences)
+	{
+		std::cout << (float)p.second / (float)n_trajectories << " " << to_string(p.first, nodes) << std::endl;
+	}
+}

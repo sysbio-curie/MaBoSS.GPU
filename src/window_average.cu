@@ -237,3 +237,31 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		std::cout << "window_average> update_time: " << update_time << "ms" << std::endl;
 	}
 }
+
+void window_average_visualize(wnd_prob_t& window_averages, float window_size, int n_trajectories,
+							  const char* const* nodes)
+{
+	for (size_t i = 0; i < window_averages.size(); ++i)
+	{
+		auto w = window_averages[i];
+
+		float entropy = 0.f;
+		for (const auto& p : w)
+		{
+			auto prob = p.second / (n_trajectories * window_size);
+
+			entropy += -std::log2(prob) * prob;
+		}
+
+		std::cout << "window [" << i * window_size << ", " << (i + 1) * window_size << ")" << std::endl;
+		std::cout << "entropy: " << entropy << std::endl;
+
+		for (const auto& p : w)
+		{
+			auto prob = p.second / (n_trajectories * window_size);
+			auto state = p.first;
+
+			std::cout << prob << " " << to_string(state, nodes) << std::endl;
+		}
+	}
+}
