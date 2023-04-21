@@ -8,6 +8,7 @@
 #define DIV_UP(x, y) (x + y - 1) / y
 
 __device__ void compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
+__device__ float compute_transition_entropy(const float* __restrict__ transition_rates);
 
 __device__ int select_flip_bit(const float* __restrict__ transition_rates, float total_rate,
 							   curandState* __restrict__ rand)
@@ -62,7 +63,8 @@ template <bool discrete_time>
 __global__ void simulate(float max_time, float time_tick, int trajectories_count, int trajectory_limit,
 						 state_t* __restrict__ last_states, float* __restrict__ last_times,
 						 curandState* __restrict__ rands, state_t* __restrict__ trajectory_states,
-						 float* __restrict__ trajectory_times, trajectory_status* __restrict__ trajectory_statuses)
+						 float* __restrict__ trajectory_times, float* __restrict__ trajectory_transition_entropies,
+						 trajectory_status* __restrict__ trajectory_statuses)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -77,6 +79,7 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 	int step = 0;
 	trajectory_states = trajectory_states + id * trajectory_limit;
 	trajectory_times = trajectory_times + id * trajectory_limit;
+	trajectory_transition_entropies = trajectory_transition_entropies + id * trajectory_limit;
 	trajectory_status status = trajectory_status::CONTINUE;
 
 	// as the first time set the last from the prev run
@@ -89,8 +92,10 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 
 		// sum up transition rates
 		float total_rate = 0.f;
-		for (size_t i = 0; i < states_count; i++)
+		for (int i = 0; i < states_count; i++)
 			total_rate += transition_rates[i];
+
+		float transition_entropy = 0.f;
 
 		// if total rate is zero, no transition is possible
 		if (total_rate == 0.f)
@@ -104,10 +109,14 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 				time += time_tick;
 			else
 				time += -logf(curand_uniform(&rand)) / total_rate;
+
+			// if total rate is nonzero, we compute the transition entropy
+			transition_entropy = compute_transition_entropy(transition_rates);
 		}
 
 		trajectory_states[step] = state;
 		trajectory_times[step] = time;
+		trajectory_transition_entropies[step] = transition_entropy;
 		step++;
 
 		if (time >= max_time || step >= trajectory_limit)
@@ -134,14 +143,15 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 
 void run_simulate(float max_time, float time_tick, bool discrete_time, int trajectories_count, int trajectory_limit,
 				  state_t* last_states, float* last_times, curandState* rands, state_t* trajectory_states,
-				  float* trajectory_times, trajectory_status* trajectory_statuses)
+				  float* trajectory_times, float* trajectory_transition_entropies,
+				  trajectory_status* trajectory_statuses)
 {
 	if (discrete_time)
 		simulate<true><<<DIV_UP(trajectories_count, 256), 256>>>(
 			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
-			trajectory_states, trajectory_times, trajectory_statuses);
+			trajectory_states, trajectory_times, trajectory_transition_entropies, trajectory_statuses);
 	else
 		simulate<false><<<DIV_UP(trajectories_count, 256), 256>>>(
 			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
-			trajectory_states, trajectory_times, trajectory_statuses);
+			trajectory_states, trajectory_times, trajectory_transition_entropies, trajectory_statuses);
 }

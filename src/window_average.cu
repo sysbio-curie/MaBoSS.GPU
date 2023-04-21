@@ -25,9 +25,21 @@ struct in_window_functor
 	}
 };
 
+namespace thrust {
+template <>
+struct plus<tuple<float, float>>
+{
+	__host__ __device__ tuple<float, float> operator()(const tuple<float, float>& lhs,
+													   const tuple<float, float>& rhs) const
+	{
+		return make_tuple(lhs.get<0>() + rhs.get<0>(), lhs.get<1>() + rhs.get<1>());
+	}
+};
+} // namespace thrust
+
 void window_average(wnd_prob_t& window_averages, float window_size, float max_time, state_t internal_mask,
-					thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times, int max_traj_len,
-					int n_trajectories)
+					thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+					thrust::device_ptr<float> traj_tr_entropies, int max_traj_len, int n_trajectories)
 {
 	size_t windows_count = std::ceil(max_time / window_size);
 
@@ -57,16 +69,18 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	transform_time = t.millisecs();
 
 	// begin and end of the whole traj batch
-	auto begin = thrust::make_zip_iterator(traj_states, traj_time_starts.begin(), traj_times);
+	auto begin = thrust::make_zip_iterator(traj_states, traj_time_starts.begin(), traj_times, traj_tr_entropies);
 	auto end = begin + n_trajectories * max_traj_len;
 
 	// host and device result arrays
 	thrust::device_vector<int> d_res_window_idxs;
 	thrust::device_vector<state_t> d_res_states;
 	thrust::device_vector<float> d_res_times;
+	thrust::device_vector<float> d_res_tr_entropies;
 	std::vector<int> h_res_window_idxs;
 	std::vector<state_t> h_res_states;
 	std::vector<float> h_res_times;
+	std::vector<float> h_res_tr_entropies;
 
 	t.start();
 
@@ -112,7 +126,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 
 	thrust::device_vector<state_t> batch_states;
 	thrust::device_vector<int> batch_window_idxs;
-	thrust::device_vector<float> batch_time_starts, batch_time_ends;
+	thrust::device_vector<float> batch_time_starts, batch_time_ends, batch_tr_entropies;
 
 	// we compute a batch of windows at a time
 	for (int batch_i = 0; batch_i < batch_indices.size() - 1; batch_i++)
@@ -125,9 +139,10 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		batch_window_idxs.resize(batch_size);
 		batch_time_starts.resize(batch_size);
 		batch_time_ends.resize(batch_size);
+		batch_tr_entropies.resize(batch_size);
 
-		auto batch_begin =
-			thrust::make_zip_iterator(batch_states.begin(), batch_time_starts.begin(), batch_time_ends.begin());
+		auto batch_begin = thrust::make_zip_iterator(batch_states.begin(), batch_time_starts.begin(),
+													 batch_time_ends.begin(), batch_tr_entropies.begin());
 
 		t.start();
 
@@ -156,7 +171,8 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		// let us sort ((window_idx, state, time_b, time_e)) array by (window_idx, state) key
 		// so we can reduce it in the next step
 		auto key_begin = thrust::make_zip_iterator(batch_window_idxs.begin(), batch_states.begin());
-		auto data_begin = thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin());
+		auto data_begin =
+			thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin(), batch_tr_entropies.begin());
 		thrust::sort_by_key(key_begin, key_begin + batch_size, data_begin);
 
 		t.stop();
@@ -176,6 +192,11 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 				return fminf(w_e, e) - fmaxf(w_b, b);
 			});
 
+		// create transform iterator, which computes the transition entropy multiplied by the time slice
+		auto weighted_tr_entropy_begin =
+			thrust::make_transform_iterator(thrust::make_zip_iterator(time_slices_begin, batch_tr_entropies.begin()),
+											thrust::make_zip_function(thrust::multiplies<float>()));
+
 		t.start();
 
 		// we compute the size of the result (sum of unique states in each window)
@@ -184,12 +205,15 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		d_res_window_idxs.resize(result_size);
 		d_res_states.resize(result_size);
 		d_res_times.resize(result_size);
+		d_res_tr_entropies.resize(result_size);
 
-		// reduce sorted array of (state, time_slice)
-		// after this we have unique states in the first result array and sum of slices in the second result array
-		thrust::reduce_by_key(key_begin, key_begin + batch_size, time_slices_begin,
+		// reduce sorted array of (state, (time_slice, weighted_tr_entropy))
+		// after this we have unique states in the first result array and sum of slices and weighted entropies in the
+		// second result
+		thrust::reduce_by_key(key_begin, key_begin + batch_size,
+							  thrust::make_zip_iterator(time_slices_begin, weighted_tr_entropy_begin),
 							  thrust::make_zip_iterator(d_res_window_idxs.begin(), d_res_states.begin()),
-							  d_res_times.begin());
+							  thrust::make_zip_iterator(d_res_times.begin(), d_res_tr_entropies.begin()));
 
 		t.stop();
 
@@ -200,6 +224,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		h_res_window_idxs.resize(result_size);
 		h_res_states.resize(result_size);
 		h_res_times.resize(result_size);
+		h_res_tr_entropies.resize(result_size);
 
 		// copy result data into host
 		CUDA_CHECK(cudaMemcpy(h_res_window_idxs.data(), thrust::raw_pointer_cast(d_res_window_idxs.data()),
@@ -207,6 +232,8 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		CUDA_CHECK(cudaMemcpy(h_res_states.data(), thrust::raw_pointer_cast(d_res_states.data()),
 							  result_size * sizeof(state_t), cudaMemcpyDeviceToHost));
 		CUDA_CHECK(cudaMemcpy(h_res_times.data(), thrust::raw_pointer_cast(d_res_times.data()),
+							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
+		CUDA_CHECK(cudaMemcpy(h_res_tr_entropies.data(), thrust::raw_pointer_cast(d_res_tr_entropies.data()),
 							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
 
 		// update
@@ -216,9 +243,15 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 			auto it = window_averages[h_res_window_idxs[i]].find(h_res_states[i]);
 
 			if (it != window_averages[h_res_window_idxs[i]].end())
-				window_averages[h_res_window_idxs[i]][h_res_states[i]] += h_res_times[i];
+			{
+				window_averages[h_res_window_idxs[i]][h_res_states[i]].first += h_res_times[i];
+				window_averages[h_res_window_idxs[i]][h_res_states[i]].second += h_res_tr_entropies[i];
+			}
 			else
-				window_averages[h_res_window_idxs[i]][h_res_states[i]] = h_res_times[i];
+			{
+				window_averages[h_res_window_idxs[i]][h_res_states[i]] =
+					std::make_pair(h_res_times[i], h_res_tr_entropies[i]);
+			}
 		}
 
 		t.stop();
@@ -231,6 +264,7 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	if (print_diags)
 	{
 		std::cout << "window_average> transform_time: " << transform_time << "ms" << std::endl;
+		std::cout << "window_average> count_time: " << count_time << "ms" << std::endl;
 		std::cout << "window_average> partition_time: " << partition_time << "ms" << std::endl;
 		std::cout << "window_average> sort_time: " << sort_time << "ms" << std::endl;
 		std::cout << "window_average> reduce_time: " << reduce_time << "ms" << std::endl;
@@ -246,19 +280,24 @@ void window_average_visualize(wnd_prob_t& window_averages, float window_size, in
 		auto w = window_averages[i];
 
 		float entropy = 0.f;
+		float wnd_tr_entropy = 0.f;
 		for (const auto& p : w)
 		{
-			auto prob = p.second / (n_trajectories * window_size);
+			auto prob = p.second.first / (n_trajectories * window_size);
+			auto tr_ent = p.second.second / (n_trajectories * window_size);
 
 			entropy += -std::log2(prob) * prob;
+			wnd_tr_entropy += tr_ent;
 		}
 
 		std::cout << "window [" << i * window_size << ", " << (i + 1) * window_size << ")" << std::endl;
 		std::cout << "entropy: " << entropy << std::endl;
+		std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
 
 		for (const auto& p : w)
 		{
-			auto prob = p.second / (n_trajectories * window_size);
+			auto prob = p.second.first / (n_trajectories * window_size);
+			auto tr_entropy = p.second.second / (n_trajectories * window_size);
 			auto state = p.first;
 
 			std::cout << prob << " " << to_string(state, nodes) << std::endl;

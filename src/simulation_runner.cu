@@ -43,6 +43,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 	auto d_traj_states = thrust::device_malloc<state_t>(n_trajectories_ * trajectory_len_limit_);
 	auto d_traj_times = thrust::device_malloc<float>(n_trajectories_ * trajectory_len_limit_);
+	auto d_traj_tr_entropies = thrust::device_malloc<float>(n_trajectories_ * trajectory_len_limit_);
 	auto d_traj_statuses = thrust::device_malloc<trajectory_status>(n_trajectories_);
 
 	// initialize states
@@ -60,7 +61,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 		// run single simulation
 		run_simulate(max_time_, time_tick_, discrete_time_, n_trajectories_, trajectory_len_limit_, d_last_states.get(),
-					 d_last_times.get(), d_rands.get(), d_traj_states.get(), d_traj_times.get(), d_traj_statuses.get());
+					 d_last_times.get(), d_rands.get(), d_traj_states.get(), d_traj_times.get(),
+					 d_traj_tr_entropies.get(), d_traj_statuses.get());
 
 		CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -68,8 +70,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		simulation_time += t.millisecs();
 
 		// compute statistics over the simulated trajs
-		run_statistics(d_traj_states, d_traj_times, d_last_states, d_traj_statuses, trajectory_len_limit_,
-					   n_trajectories_);
+		run_statistics(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
+					   trajectory_len_limit_, n_trajectories_);
 
 		// prepare for the next iteration
 		{
@@ -107,5 +109,6 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 	thrust::device_free(d_rands);
 	thrust::device_free(d_traj_states);
 	thrust::device_free(d_traj_times);
+	thrust::device_free(d_traj_tr_entropies);
 	thrust::device_free(d_traj_statuses);
 }

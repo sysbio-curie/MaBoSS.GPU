@@ -8,10 +8,10 @@
 
 using seed_t = unsigned long long;
 
-using statistics_func_t =
-	std::function<void(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-					   thrust::device_ptr<state_t> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
-					   int trajectory_len_limit, int n_trajectories)>;
+using statistics_func_t = std::function<void(
+	thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+	thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
+	thrust::device_ptr<trajectory_status> traj_statuses, int trajectory_len_limit, int n_trajectories)>;
 
 class simulation_runner
 {
