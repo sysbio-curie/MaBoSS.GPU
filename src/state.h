@@ -136,7 +136,7 @@ std::string to_string(const state_t_template<bits>& s, const char* const* names)
 {
 	bool first = true;
 	std::string name;
-	for (int i = 0; i < states_count; i++)
+	for (int i = 0; i < bits; i++)
 	{
 		if (s.is_set(i))
 		{
