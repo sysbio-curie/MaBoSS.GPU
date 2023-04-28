@@ -6,12 +6,10 @@
 #include <thrust/unique.h>
 #include <thrust/zip_function.h>
 
-#include "statistics.h"
-#include "timer.h"
-#include "utils.h"
+#include "../utils.h"
+#include "window_average.h"
 
 constexpr bool print_diags = false;
-constexpr size_t batch_size_limit = 50'000'000; // TODO
 
 struct in_window_functor
 {
@@ -37,9 +35,12 @@ struct plus<tuple<float, float>>
 };
 } // namespace thrust
 
-void window_average(wnd_prob_t& window_averages, float window_size, float max_time, state_t internal_mask,
-					thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-					thrust::device_ptr<float> traj_tr_entropies, int max_traj_len, int n_trajectories)
+window_average_stats::window_average_stats() : batch_size_limit_(50'000'000) {}
+
+void window_average_stats::process_batch(float window_size, float max_time, state_t internal_mask,
+										 thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+										 thrust::device_ptr<float> traj_tr_entropies, int max_traj_len,
+										 int n_trajectories)
 {
 	size_t windows_count = std::ceil(max_time / window_size);
 
@@ -116,7 +117,8 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 		size_t batch_idx_begin = 0;
 		for (int i = 0; i < windows_sizes.size(); i++)
 		{
-			if ((windows_sizes[i] - windows_sizes[batch_idx_begin]) < batch_size_limit && i != windows_sizes.size() - 1)
+			if ((windows_sizes[i] - windows_sizes[batch_idx_begin]) < batch_size_limit_
+				&& i != windows_sizes.size() - 1)
 				continue;
 
 			batch_indices.push_back(i);
@@ -237,20 +239,19 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 							  result_size * sizeof(float), cudaMemcpyDeviceToHost));
 
 		// update
-		window_averages.resize(windows_count);
+		result_.resize(windows_count);
 		for (size_t i = 0; i < result_size; ++i)
 		{
-			auto it = window_averages[h_res_window_idxs[i]].find(h_res_states[i]);
+			auto it = result_[h_res_window_idxs[i]].find(h_res_states[i]);
 
-			if (it != window_averages[h_res_window_idxs[i]].end())
+			if (it != result_[h_res_window_idxs[i]].end())
 			{
-				window_averages[h_res_window_idxs[i]][h_res_states[i]].first += h_res_times[i];
-				window_averages[h_res_window_idxs[i]][h_res_states[i]].second += h_res_tr_entropies[i];
+				result_[h_res_window_idxs[i]][h_res_states[i]].first += h_res_times[i];
+				result_[h_res_window_idxs[i]][h_res_states[i]].second += h_res_tr_entropies[i];
 			}
 			else
 			{
-				window_averages[h_res_window_idxs[i]][h_res_states[i]] =
-					std::make_pair(h_res_times[i], h_res_tr_entropies[i]);
+				result_[h_res_window_idxs[i]][h_res_states[i]] = std::make_pair(h_res_times[i], h_res_tr_entropies[i]);
 			}
 		}
 
@@ -272,12 +273,11 @@ void window_average(wnd_prob_t& window_averages, float window_size, float max_ti
 	}
 }
 
-void window_average_visualize(wnd_prob_t& window_averages, float window_size, int n_trajectories,
-							  const char* const* nodes)
+void window_average_stats::visualize(float window_size, int n_trajectories, const char* const* nodes)
 {
-	for (size_t i = 0; i < window_averages.size(); ++i)
+	for (size_t i = 0; i < result_.size(); ++i)
 	{
-		auto w = window_averages[i];
+		auto w = result_[i];
 
 		float entropy = 0.f;
 		float wnd_tr_entropy = 0.f;

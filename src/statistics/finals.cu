@@ -1,4 +1,4 @@
-#include <thrust/copy.h>
+﻿#include <thrust/copy.h>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -6,20 +6,29 @@
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 
-#include "statistics.h"
-#include "timer.h"
+#include "finals.h"
 
 constexpr bool print_diags = false;
 
-void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t> last_states,
-				  thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
+finals_stats::finals_stats(target_t target, state_t internals_mask) : target_(target), internals_mask_(internals_mask)
+{}
+
+void finals_stats::process_batch(thrust::device_ptr<state_t> last_states,
+								 thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
 	timer t;
 	float copy_sort_reduce_time = 0.f, update_time = 0.f;
 
 	t.start();
 
-	auto fp_pred = [] __device__(trajectory_status t) { return t == trajectory_status::FIXED_POINT; };
+	auto fp_pred = [target = target_] __device__(trajectory_status t) {
+		if (target == target_t::FIXED)
+			return t == trajectory_status::FIXED_POINT;
+		else if (target == target_t::FINAL)
+			return t == trajectory_status::FINISHED || t == trajectory_status::FIXED_POINT;
+		else
+			return false;
+	};
 
 	size_t finished_trajs_size = thrust::count_if(traj_statuses, traj_statuses + n_trajectories, fp_pred);
 
@@ -28,7 +37,20 @@ void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t>
 
 	thrust::device_vector<state_t> final_states(finished_trajs_size);
 
-	thrust::copy_if(last_states, last_states + n_trajectories, traj_statuses, final_states.begin(), fp_pred);
+
+
+	if (target_ == target_t::FINAL)
+	{
+		auto m = internals_mask_;
+		auto states_it =
+			thrust::make_transform_iterator(last_states, [m] __host__ __device__(state_t s) { return s & ~m; });
+
+		thrust::copy_if(states_it, states_it + n_trajectories, traj_statuses, final_states.begin(), fp_pred);
+	}
+	else if (target_ == target_t::FIXED)
+	{
+		thrust::copy_if(last_states, last_states + n_trajectories, traj_statuses, final_states.begin(), fp_pred);
+	}
 
 	thrust::sort(final_states.begin(), final_states.end());
 
@@ -53,12 +75,12 @@ void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t>
 
 	for (size_t i = 0; i < unique_fixed_points_size; i++)
 	{
-		auto it = fixed_points_occurences.find(h_unique_fixed_points[i]);
+		auto it = result_.find(h_unique_fixed_points[i]);
 
-		if (it != fixed_points_occurences.end())
-			fixed_points_occurences[h_unique_fixed_points[i]] += h_unique_fixed_points_count[i];
+		if (it != result_.end())
+			result_[h_unique_fixed_points[i]] += h_unique_fixed_points_count[i];
 		else
-			fixed_points_occurences[h_unique_fixed_points[i]] = h_unique_fixed_points_count[i];
+			result_[h_unique_fixed_points[i]] = h_unique_fixed_points_count[i];
 	}
 
 	t.stop();
@@ -72,10 +94,14 @@ void fixed_points(fp_map_t& fixed_points_occurences, thrust::device_ptr<state_t>
 	}
 }
 
-void fixed_points_visualize(fp_map_t& fixed_points_occurences, int n_trajectories, const char* const* nodes)
+void finals_stats::visualize(int n_trajectories, const char* const* nodes)
 {
-	std::cout << "fixed points:" << std::endl;
-	for (const auto& p : fixed_points_occurences)
+	if (target_ == target_t::FINAL)
+		std::cout << "final points:" << std::endl;
+	else
+		std::cout << "fixed points:" << std::endl;
+
+	for (const auto& p : result_)
 	{
 		std::cout << (float)p.second / (float)n_trajectories << " " << to_string(p.first, nodes) << std::endl;
 	}

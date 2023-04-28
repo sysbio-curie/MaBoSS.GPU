@@ -4,7 +4,8 @@
 
 #include "cfg_config.h.generated"
 #include "simulation_runner.h"
-#include "statistics.h"
+#include "statistics/finals.h"
+#include "statistics/window_average.h"
 
 int main()
 {
@@ -31,25 +32,25 @@ int main()
 	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time);
 
 	// for window averages
-	wnd_prob_t res;
-
-	// for fixed points
-	fp_map_t fp_res;
+	window_average_stats wnd;
+	finals_stats fin(target_t::FINAL, internals_mask);
+	finals_stats fix(target_t::FIXED);
 
 	auto do_stats = [&](thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
 						thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
 						thrust::device_ptr<trajectory_status> traj_statuses, int trajectory_len_limit,
 						int n_trajectories) {
-		window_average(res, window_size, max_time, internals_mask, traj_states, traj_times, traj_tr_entropies,
-					   trajectory_len_limit, n_trajectories);
-
-		fixed_points(fp_res, last_states, traj_statuses, n_trajectories);
+		wnd.process_batch(window_size, max_time, internals_mask, traj_states, traj_times, traj_tr_entropies,
+						  trajectory_len_limit, n_trajectories);
+		fin.process_batch(last_states, traj_statuses, n_trajectories);
+		fix.process_batch(last_states, traj_statuses, n_trajectories);
 	};
 
 	r.run_simulation(do_stats);
 
-	window_average_visualize(res, window_size, sample_count, nodes);
-	fixed_points_visualize(fp_res, sample_count, nodes);
+	wnd.visualize(window_size, sample_count, nodes);
+	fin.visualize(sample_count, nodes);
+	fix.visualize(sample_count, nodes);
 
 	return 0;
 }
