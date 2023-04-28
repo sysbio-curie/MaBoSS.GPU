@@ -1,7 +1,6 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include "cfg_config.h.generated"
 #include "simulation.h"
 #include "transition_rates.cu.generated"
 
@@ -24,8 +23,7 @@ __device__ int select_flip_bit(const float* __restrict__ transition_rates, float
 	return states_count - 1;
 }
 
-__global__ void initialize(int trajectories_count, unsigned long long seed, state_t fixed_part, state_t free_mask,
-						   state_t* __restrict__ states, float* __restrict__ times, curandState* __restrict__ rands)
+__global__ void initialize_random(int trajectories_count, unsigned long long seed, curandState* __restrict__ rands)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -33,6 +31,15 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, stat
 
 	// initialize random number generator
 	curand_init(seed, id, 0, rands + id);
+}
+
+__global__ void initialize_initial_state(int trajectories_count, state_t fixed_part, state_t free_mask,
+										 state_t* __restrict__ states, float* __restrict__ times,
+										 curandState* __restrict__ rands)
+{
+	auto id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id >= trajectories_count)
+		return;
 
 	// initialize state
 	state_t s = fixed_part;
@@ -52,11 +59,16 @@ __global__ void initialize(int trajectories_count, unsigned long long seed, stat
 	times[id] = 0.f;
 }
 
-void run_initialize(int trajectories_count, unsigned long long seed, state_t fixed_part, state_t free_mask,
-					state_t* states, float* times, curandState* rands)
+void run_initialize_initial_state(int trajectories_count, state_t fixed_part, state_t free_mask, state_t* states,
+								  float* times, curandState* rands)
 {
-	initialize<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, fixed_part, free_mask, states, times,
-														 rands);
+	initialize_initial_state<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, fixed_part, free_mask,
+																	   states, times, rands);
+}
+
+void run_initialize_random(int trajectories_count, unsigned long long seed, curandState* rands)
+{
+	initialize_random<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, seed, rands);
 }
 
 template <bool discrete_time>

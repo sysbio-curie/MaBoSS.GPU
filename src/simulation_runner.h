@@ -23,6 +23,7 @@ class simulation_runner
 	state_t fixed_initial_part_, free_mask_;
 
 	int trajectory_len_limit_;
+	int trajectory_batch_limit_;
 
 public:
 	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time,
