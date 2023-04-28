@@ -7,6 +7,7 @@ from cfg_types import *
 from bnd_types import *
 
 import sys
+import os
 
 
 def get_internals(nodes, cfg):
@@ -175,8 +176,11 @@ __device__ float {node_name}_rate(const state_t& state)
 
 
 def generate_if_newer(path, content):
-    with open(path, 'r') as f:
-        old_content = f.read()
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            old_content = f.read()
+    else:
+        old_content = ""
 
     if content != old_content:
         with open(path, 'w') as f:
