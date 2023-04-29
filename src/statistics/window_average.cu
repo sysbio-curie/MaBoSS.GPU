@@ -1,7 +1,6 @@
-#include <thrust/adjacent_difference.h>
+#include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/partition.h>
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 #include <thrust/zip_function.h>
@@ -10,18 +9,6 @@
 #include "window_average.h"
 
 constexpr bool print_diags = false;
-
-struct in_window_functor
-{
-	float window_begin, window_end;
-
-	in_window_functor(float window_begin, float window_end) : window_begin(window_begin), window_end(window_end) {}
-
-	__device__ bool operator()(float slice_begin, float slice_end)
-	{
-		return !(slice_end < window_begin || slice_begin >= window_end) && slice_end != 0.f;
-	}
-};
 
 namespace thrust {
 template <>
@@ -37,6 +24,104 @@ struct plus<tuple<float, float>>
 
 window_average_stats::window_average_stats() : batch_size_limit_(50'000'000) {}
 
+thrust::device_vector<int> partition_count(float window_size, thrust::device_ptr<state_t> traj_states,
+										   thrust::device_ptr<float> traj_times,
+										   thrust::device_ptr<float> traj_tr_entropies, int max_traj_len,
+										   int n_trajectories)
+{
+	thrust::device_vector<int> traj_step_in_windows(n_trajectories * max_traj_len + 1);
+
+	thrust::for_each_n(
+		thrust::device, thrust::make_counting_iterator(0), n_trajectories * max_traj_len,
+		[max_traj_len, traj_step_in_windows = traj_step_in_windows.data(), traj_times, window_size] __device__(int i) {
+			if (i % max_traj_len == 0 || traj_times[i] == 0.f)
+			{
+				traj_step_in_windows[i] = 0;
+				return;
+			}
+
+			float slice_begin = traj_times[i - 1];
+			float slice_end = traj_times[i];
+
+			int wnd_idx = floorf(slice_begin / window_size);
+			float wnd_start = wnd_idx * window_size;
+
+			int windows = 0;
+
+			while (slice_end > slice_begin)
+			{
+				windows++;
+				wnd_start = (wnd_idx + windows) * window_size;
+				slice_begin = fminf(slice_end, wnd_start);
+			}
+
+			traj_step_in_windows[i] = windows;
+		});
+
+	size_t total_slices = thrust::reduce(traj_step_in_windows.begin(), traj_step_in_windows.end());
+
+	thrust::exclusive_scan(traj_step_in_windows.begin(), traj_step_in_windows.end() - 1, traj_step_in_windows.begin());
+	traj_step_in_windows.back() = total_slices;
+
+	return traj_step_in_windows;
+}
+
+void partition(float window_size, thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+			   thrust::device_ptr<float> traj_tr_entropies, int max_traj_len, int n_trajectories,
+			   const thrust::device_vector<int>& traj_step_in_windows, size_t batch_begin_idx, size_t batch_end_idx,
+			   thrust::device_vector<state_t>& traj_states_divided, thrust::device_vector<float>& traj_slices_divided,
+			   thrust::device_vector<int>& traj_slice_window_divided,
+			   thrust::device_vector<float>& traj_tr_entropies_divided)
+{
+	size_t batch_begin = traj_step_in_windows[batch_begin_idx];
+	size_t batch_end = traj_step_in_windows[batch_end_idx];
+
+	size_t batch_size = batch_end - batch_begin;
+
+	traj_states_divided.resize(batch_size);
+	traj_slices_divided.resize(batch_size);
+	traj_slice_window_divided.resize(batch_size);
+	traj_tr_entropies_divided.resize(batch_size);
+
+	thrust::for_each(
+		thrust::device, thrust::make_counting_iterator(batch_begin_idx), thrust::make_counting_iterator(batch_end_idx),
+		[traj_states, traj_times, traj_tr_entropies, traj_states_divided = traj_states_divided.data(),
+		 traj_slices_divided = traj_slices_divided.data(), traj_slice_window_divided = traj_slice_window_divided.data(),
+		 traj_tr_entropies_divided = traj_tr_entropies_divided.data(), max_traj_len, window_size,
+		 traj_step_in_windows = traj_step_in_windows.data(), batch_begin] __device__(int i) {
+			if (i % max_traj_len == 0 || traj_times[i] == 0.f)
+			{
+				return;
+			}
+
+			size_t offset = traj_step_in_windows[i] - batch_begin;
+
+			state_t state = traj_states[i];
+			float tr_h = traj_tr_entropies[i];
+
+			float slice_begin = traj_times[i - 1];
+			float slice_end = traj_times[i];
+
+			int wnd_idx = floorf(slice_begin / window_size);
+
+			while (slice_end > slice_begin)
+			{
+				float wnd_end = (wnd_idx + 1) * window_size;
+				float slice_in_wnd = fminf(slice_end, wnd_end) - slice_begin;
+
+				traj_states_divided[offset] = state;
+				traj_tr_entropies_divided[offset] = tr_h;
+				traj_slices_divided[offset] = slice_in_wnd;
+				traj_slice_window_divided[offset] = wnd_idx;
+
+				offset++;
+				wnd_idx++;
+
+				slice_begin = fminf(slice_end, wnd_end);
+			}
+		});
+}
+
 void window_average_stats::process_batch(float window_size, float max_time, state_t internal_mask,
 										 thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
 										 thrust::device_ptr<float> traj_tr_entropies, int max_traj_len,
@@ -50,28 +135,12 @@ void window_average_stats::process_batch(float window_size, float max_time, stat
 
 	t.start();
 
-	// since traj_times does not contain time slices, but the timepoints of transitions,
-	// we materialize a beginning for each timepoint for convenience
-	thrust::device_vector<float> traj_time_starts(n_trajectories * max_traj_len);
-	thrust::copy(traj_times, traj_times + n_trajectories * max_traj_len - 1, traj_time_starts.begin() + 1);
-
-	// this needs to be done because the begining of each traj has the last time from the previous batch
-	// this first element is required so we properly compute traj_time_starts
-	thrust::for_each(
-		thrust::device, thrust::make_counting_iterator(0), thrust::make_counting_iterator(n_trajectories),
-		[traj_times = traj_times.get(), max_traj_len] __device__(int i) { traj_times[i * max_traj_len] = 0.f; });
-
-	// and mask internal nodes
 	thrust::transform(traj_states, traj_states + n_trajectories * max_traj_len, traj_states,
 					  [internal_mask] __device__(state_t s) { return s & ~internal_mask; });
 
 	t.stop();
 
 	transform_time = t.millisecs();
-
-	// begin and end of the whole traj batch
-	auto begin = thrust::make_zip_iterator(traj_states, traj_time_starts.begin(), traj_times, traj_tr_entropies);
-	auto end = begin + n_trajectories * max_traj_len;
 
 	// host and device result arrays
 	thrust::device_vector<int> d_res_window_idxs;
@@ -85,118 +154,64 @@ void window_average_stats::process_batch(float window_size, float max_time, stat
 
 	t.start();
 
-	std::vector<size_t> windows_sizes;
+	thrust::device_vector<int> divided_count =
+		partition_count(window_size, traj_states, traj_times, traj_tr_entropies, max_traj_len, n_trajectories);
 
-	// compute the size of each window
-	for (size_t window_idx = 0; window_idx < windows_count; window_idx++)
+	// divide windows to batches of batch_size_limit so we do not OOM
+	std::vector<size_t> batch_indices;
 	{
-		float w_b = window_idx * window_size;
-		float w_e = w_b + window_size;
+		batch_indices.push_back(0);
+		while (batch_indices.back() != n_trajectories * max_traj_len)
+		{
+			size_t new_idx = thrust::lower_bound(divided_count.begin(), divided_count.end(),
+												 (batch_size_limit_)*batch_indices.size())
+							 - divided_count.begin() - 1;
 
-		// find states in the window by moving them to the front
-		auto time_begin = thrust::make_zip_iterator(traj_time_starts.begin(), traj_times);
-		windows_sizes.push_back(thrust::count_if(time_begin, time_begin + n_trajectories * max_traj_len,
-												 thrust::make_zip_function(in_window_functor(w_b, w_e))));
+			batch_indices.push_back(new_idx);
+		}
 	}
 
 	t.stop();
 
 	count_time += t.millisecs();
 
-	// we compute offsets for each window data
-	{
-		auto whole_size = thrust::reduce(windows_sizes.begin(), windows_sizes.end());
-		thrust::exclusive_scan(windows_sizes.begin(), windows_sizes.end(), windows_sizes.begin());
-		windows_sizes.push_back(whole_size);
-	}
-
-	// divide windows to batches of batch_size_limit so we do not OOM
-	std::vector<size_t> batch_indices;
-	{
-		batch_indices.push_back(0);
-		size_t batch_idx_begin = 0;
-		for (int i = 0; i < windows_sizes.size(); i++)
-		{
-			if ((windows_sizes[i] - windows_sizes[batch_idx_begin]) < batch_size_limit_
-				&& i != windows_sizes.size() - 1)
-				continue;
-
-			batch_indices.push_back(i);
-			batch_idx_begin = i;
-		}
-	}
-
-	thrust::device_vector<state_t> batch_states;
-	thrust::device_vector<int> batch_window_idxs;
-	thrust::device_vector<float> batch_time_starts, batch_time_ends, batch_tr_entropies;
+	thrust::device_vector<state_t> batch_states(batch_size_limit_ + windows_count);
+	thrust::device_vector<int> batch_window_idxs(batch_size_limit_ + windows_count);
+	thrust::device_vector<float> batch_slices(batch_size_limit_ + windows_count),
+		batch_tr_entropies(batch_size_limit_ + windows_count);
 
 	// we compute a batch of windows at a time
 	for (int batch_i = 0; batch_i < batch_indices.size() - 1; batch_i++)
 	{
 		size_t batch_idx_begin = batch_indices[batch_i];
 		size_t batch_idx_end = batch_indices[batch_i + 1];
-		size_t batch_size = windows_sizes[batch_idx_end] - windows_sizes[batch_idx_begin];
-
-		batch_states.resize(batch_size);
-		batch_window_idxs.resize(batch_size);
-		batch_time_starts.resize(batch_size);
-		batch_time_ends.resize(batch_size);
-		batch_tr_entropies.resize(batch_size);
-
-		auto batch_begin = thrust::make_zip_iterator(batch_states.begin(), batch_time_starts.begin(),
-													 batch_time_ends.begin(), batch_tr_entropies.begin());
 
 		t.start();
 
-		// we fill in batch arrays with windows in this batch
-		for (size_t window_idx = batch_idx_begin; window_idx < batch_idx_end; window_idx++)
-		{
-			size_t in_batch_offset = windows_sizes[window_idx] - windows_sizes[batch_idx_begin];
-			float w_b = window_idx * window_size;
-			float w_e = w_b + window_size;
-
-			auto key_begin = thrust::make_zip_iterator(traj_time_starts.begin(), traj_times);
-			thrust::copy_if(begin, begin + n_trajectories * max_traj_len, key_begin, batch_begin + in_batch_offset,
-							thrust::make_zip_function(in_window_functor(w_b, w_e)));
-
-			thrust::fill(batch_window_idxs.begin() + in_batch_offset,
-						 batch_window_idxs.begin() + windows_sizes[window_idx + 1] - windows_sizes[batch_idx_begin],
-						 window_idx);
-		}
+		partition(window_size, traj_states, traj_times, traj_tr_entropies, max_traj_len, n_trajectories, divided_count,
+				  batch_idx_begin, batch_idx_end, batch_states, batch_slices, batch_window_idxs, batch_tr_entropies);
 
 		t.stop();
 
 		partition_time += t.millisecs();
+
+		size_t batch_size = batch_states.size();
 
 		t.start();
 
 		// let us sort ((window_idx, state, time_b, time_e)) array by (window_idx, state) key
 		// so we can reduce it in the next step
 		auto key_begin = thrust::make_zip_iterator(batch_window_idxs.begin(), batch_states.begin());
-		auto data_begin =
-			thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin(), batch_tr_entropies.begin());
+		auto data_begin = thrust::make_zip_iterator(batch_slices.begin(), batch_tr_entropies.begin());
 		thrust::sort_by_key(key_begin, key_begin + batch_size, data_begin);
 
 		t.stop();
 
 		sort_time += t.millisecs();
 
-		// create transform iterator, which computes the intersection of a window and a transition time slice
-		auto time_slices_begin = thrust::make_transform_iterator(
-			thrust::make_zip_iterator(batch_time_starts.begin(), batch_time_ends.begin(), batch_window_idxs.begin()),
-			[window_size, max_time] __host__ __device__(const thrust::tuple<float, float, int>& t) {
-				const float b = thrust::get<0>(t);
-				const float e = thrust::get<1>(t);
-
-				const float w_b = thrust::get<2>(t) * window_size;
-				const float w_e = fminf(w_b + window_size, max_time);
-
-				return fminf(w_e, e) - fmaxf(w_b, b);
-			});
-
 		// create transform iterator, which computes the transition entropy multiplied by the time slice
 		auto weighted_tr_entropy_begin =
-			thrust::make_transform_iterator(thrust::make_zip_iterator(time_slices_begin, batch_tr_entropies.begin()),
+			thrust::make_transform_iterator(thrust::make_zip_iterator(batch_slices.begin(), batch_tr_entropies.begin()),
 											thrust::make_zip_function(thrust::multiplies<float>()));
 
 		t.start();
@@ -213,7 +228,7 @@ void window_average_stats::process_batch(float window_size, float max_time, stat
 		// after this we have unique states in the first result array and sum of slices and weighted entropies in the
 		// second result
 		thrust::reduce_by_key(key_begin, key_begin + batch_size,
-							  thrust::make_zip_iterator(time_slices_begin, weighted_tr_entropy_begin),
+							  thrust::make_zip_iterator(batch_slices.begin(), weighted_tr_entropy_begin),
 							  thrust::make_zip_iterator(d_res_window_idxs.begin(), d_res_states.begin()),
 							  thrust::make_zip_iterator(d_res_times.begin(), d_res_tr_entropies.begin()));
 
@@ -264,6 +279,7 @@ void window_average_stats::process_batch(float window_size, float max_time, stat
 
 	if (print_diags)
 	{
+		std::cout << "window_average> batches count: " << batch_indices.size() - 1 << std::endl;
 		std::cout << "window_average> transform_time: " << transform_time << "ms" << std::endl;
 		std::cout << "window_average> count_time: " << count_time << "ms" << std::endl;
 		std::cout << "window_average> partition_time: " << partition_time << "ms" << std::endl;
@@ -290,7 +306,7 @@ void window_average_stats::visualize(float window_size, int n_trajectories, cons
 			wnd_tr_entropy += tr_ent;
 		}
 
-		std::cout << "window [" << i * window_size << ", " << (i + 1) * window_size << ")" << std::endl;
+		std::cout << "window (" << i * window_size << ", " << (i + 1) * window_size << "]" << std::endl;
 		std::cout << "entropy: " << entropy << std::endl;
 		std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
 

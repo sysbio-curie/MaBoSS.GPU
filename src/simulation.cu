@@ -122,6 +122,8 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 			else
 				time += -logf(curand_uniform(&rand)) / total_rate;
 
+			time = fminf(time, max_time);
+
 			// if total rate is nonzero, we compute the transition entropy
 			transition_entropy = compute_transition_entropy(transition_rates);
 		}

@@ -37,8 +37,6 @@ void finals_stats::process_batch(thrust::device_ptr<state_t> last_states,
 
 	thrust::device_vector<state_t> final_states(finished_trajs_size);
 
-
-
 	if (target_ == target_t::FINAL)
 	{
 		auto m = internals_mask_;

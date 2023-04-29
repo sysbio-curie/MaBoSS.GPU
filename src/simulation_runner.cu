@@ -65,10 +65,18 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 	{
 		int trajectories_in_batch = std::min(n_trajectories_, trajectory_batch_limit_);
 
+		t.start();
+
 		run_initialize_initial_state(trajectories_in_batch, fixed_initial_part_, free_mask_, d_last_states.get(),
 									 d_last_times.get(), d_rands.get());
 
 		CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit_ * sizeof(float)));
+
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		t.stop();
+
+		init_time += t.millisecs();
 
 		while (trajectories_in_batch)
 		{
