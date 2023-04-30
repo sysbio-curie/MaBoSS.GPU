@@ -6,9 +6,8 @@
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 
+#include "../diagnostics.h"
 #include "finals.h"
-
-constexpr bool print_diags = false;
 
 finals_stats::finals_stats(target_t target, state_t internals_mask) : target_(target), internals_mask_(internals_mask)
 {}

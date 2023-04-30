@@ -9,10 +9,9 @@
 #include <thrust/unique.h>
 #include <thrust/zip_function.h>
 
+#include "../diagnostics.h"
 #include "../utils.h"
 #include "window_average.h"
-
-constexpr bool print_diags = false;
 
 __global__ void into_windows_size(int max_traj_len, int n_trajectories, float window_size,
 								  const float* __restrict__ traj_times, int* __restrict__ step_window_sizes)
@@ -109,6 +108,9 @@ window_average_stats::window_average_stats(float window_size, float max_time, st
 	  max_n_trajectories_(max_n_trajectories),
 	  batch_size_limit_(50'000'000)
 {
+	timer t;
+	t.start();
+
 	steps_by_window_sizes_ = thrust::device_malloc<int>(max_n_trajectories * max_traj_len + 1);
 
 	size_t windows_count = std::ceil(max_time / window_size);
@@ -116,6 +118,13 @@ window_average_stats::window_average_stats(float window_size, float max_time, st
 	windowed_traj_slices_ = thrust::device_malloc<float>(batch_size_limit_);
 	windowed_traj_tr_entropies_ = thrust::device_malloc<float>(batch_size_limit_);
 	window_indices_ = thrust::device_malloc<int>(batch_size_limit_);
+
+	t.stop();
+
+	if (print_diags)
+	{
+		std::cout << "window_average> init_time: " << t.millisecs() << "ms" << std::endl;
+	}
 }
 
 window_average_stats::~window_average_stats()

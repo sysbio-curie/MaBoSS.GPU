@@ -3,12 +3,11 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/partition.h>
 
+#include "diagnostics.h"
 #include "simulation.h"
 #include "simulation_runner.h"
-#include "timer.h"
 #include "utils.h"
 
-constexpr bool print_diags = true;
 
 template <typename T>
 struct eq_ftor
@@ -30,14 +29,14 @@ simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fi
 	  fixed_initial_part_(fixed_initial_part),
 	  free_mask_(free_mask)
 {
-	trajectory_batch_limit = 1'000'000;
+	trajectory_batch_limit = std::min(1'000'000, n_trajectories);
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
 }
 
 void simulation_runner::run_simulation(statistics_func_t run_statistics)
 {
 	timer t;
-	long long init_time = 0.f, simulation_time = 0.f, preparation_time = 0.f;
+	long long init_time = 0.f, simulation_time = 0.f, preparation_time = 0.f, stats_time = 0.f;
 	int remaining_trajs = n_trajectories_;
 
 	t.start();
@@ -84,9 +83,14 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		t.stop();
 		simulation_time += t.millisecs();
 
+		t.start();
+
 		// compute statistics over the simulated trajs
 		run_statistics(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
 					   trajectory_len_limit, trajectories_in_batch);
+
+		t.stop();
+		stats_time += t.millisecs();
 
 		// prepare for the next iteration
 		{
@@ -123,8 +127,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 			}
 
 			// set all batch traj times to 0
-			CUDA_CHECK(
-				cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit * sizeof(float)));
+			CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit * sizeof(float)));
 
 			CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -143,6 +146,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		std::cout << "simulation_runner> init_time: " << init_time << "ms" << std::endl;
 		std::cout << "simulation_runner> simulation_time: " << simulation_time << "ms" << std::endl;
 		std::cout << "simulation_runner> preparation_time: " << preparation_time << "ms" << std::endl;
+		std::cout << "simulation_runner> stats_time: " << stats_time << "ms" << std::endl;
 	}
 
 	thrust::device_free(d_last_states);
