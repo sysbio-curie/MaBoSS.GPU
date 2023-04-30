@@ -30,7 +30,7 @@ struct state_t_template
 
 	constexpr bool operator<(const state_t_template<bits>& other) const
 	{
-		for (int i = 0; i < words_n; i++)
+		for (int i = words_n - 1; i >= 0; i--)
 			if (data[i] != other.data[i])
 				return data[i] < other.data[i];
 		return false;
