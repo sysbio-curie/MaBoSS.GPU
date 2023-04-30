@@ -8,7 +8,7 @@
 #include "timer.h"
 #include "utils.h"
 
-constexpr bool print_diags = false;
+constexpr bool print_diags = true;
 
 template <typename T>
 struct eq_ftor
@@ -30,8 +30,8 @@ simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fi
 	  fixed_initial_part_(fixed_initial_part),
 	  free_mask_(free_mask)
 {
-	trajectory_batch_limit_ = 1'000'000;
-	trajectory_len_limit_ = 100; // TODO compute limit according to the available mem
+	trajectory_batch_limit = 1'000'000;
+	trajectory_len_limit = 100; // TODO compute limit according to the available mem
 }
 
 void simulation_runner::run_simulation(statistics_func_t run_statistics)
@@ -44,22 +44,22 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 	CUDA_CHECK(cudaSetDevice(0));
 
-	auto d_last_states = thrust::device_malloc<state_t>(trajectory_batch_limit_);
-	auto d_last_times = thrust::device_malloc<float>(trajectory_batch_limit_);
-	auto d_rands = thrust::device_malloc<curandState>(trajectory_batch_limit_);
+	auto d_last_states = thrust::device_malloc<state_t>(trajectory_batch_limit);
+	auto d_last_times = thrust::device_malloc<float>(trajectory_batch_limit);
+	auto d_rands = thrust::device_malloc<curandState>(trajectory_batch_limit);
 
-	auto d_traj_states = thrust::device_malloc<state_t>(trajectory_batch_limit_ * trajectory_len_limit_);
-	auto d_traj_times = thrust::device_malloc<float>(trajectory_batch_limit_ * trajectory_len_limit_);
-	auto d_traj_tr_entropies = thrust::device_malloc<float>(trajectory_batch_limit_ * trajectory_len_limit_);
-	auto d_traj_statuses = thrust::device_malloc<trajectory_status>(trajectory_batch_limit_);
+	auto d_traj_states = thrust::device_malloc<state_t>(trajectory_batch_limit * trajectory_len_limit);
+	auto d_traj_times = thrust::device_malloc<float>(trajectory_batch_limit * trajectory_len_limit);
+	auto d_traj_tr_entropies = thrust::device_malloc<float>(trajectory_batch_limit * trajectory_len_limit);
+	auto d_traj_statuses = thrust::device_malloc<trajectory_status>(trajectory_batch_limit);
 
 	// initialize states
-	run_initialize_random(trajectory_batch_limit_, seed_, d_rands.get());
+	run_initialize_random(trajectory_batch_limit, seed_, d_rands.get());
 
-	run_initialize_initial_state(trajectory_batch_limit_, fixed_initial_part_, free_mask_, d_last_states.get(),
+	run_initialize_initial_state(trajectory_batch_limit, fixed_initial_part_, free_mask_, d_last_states.get(),
 								 d_last_times.get(), d_rands.get());
 
-	CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectory_batch_limit_ * trajectory_len_limit_ * sizeof(float)));
+	CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectory_batch_limit * trajectory_len_limit * sizeof(float)));
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -67,7 +67,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 	init_time = t.millisecs();
 
-	int trajectories_in_batch = std::min(n_trajectories_, trajectory_batch_limit_);
+	int trajectories_in_batch = std::min(n_trajectories_, trajectory_batch_limit);
 	n_trajectories_ -= trajectories_in_batch;
 
 	while (trajectories_in_batch)
@@ -75,7 +75,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		t.start();
 
 		// run single simulation
-		run_simulate(max_time_, time_tick_, discrete_time_, trajectories_in_batch, trajectory_len_limit_,
+		run_simulate(max_time_, time_tick_, discrete_time_, trajectories_in_batch, trajectory_len_limit,
 					 d_last_states.get(), d_last_times.get(), d_rands.get(), d_traj_states.get(), d_traj_times.get(),
 					 d_traj_tr_entropies.get(), d_traj_statuses.get());
 
@@ -86,7 +86,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 		// compute statistics over the simulated trajs
 		run_statistics(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
-					   trajectory_len_limit_, trajectories_in_batch);
+					   trajectory_len_limit, trajectories_in_batch);
 
 		// prepare for the next iteration
 		{
@@ -106,7 +106,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 			// add new work to the batch
 			{
-				int batch_free_size = trajectory_batch_limit_ - trajectories_in_batch;
+				int batch_free_size = trajectory_batch_limit - trajectories_in_batch;
 				int new_batch_addition = std::min(batch_free_size, n_trajectories_);
 
 				if (new_batch_addition)
@@ -124,7 +124,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 			// set all batch traj times to 0
 			CUDA_CHECK(
-				cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit_ * sizeof(float)));
+				cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit * sizeof(float)));
 
 			CUDA_CHECK(cudaDeviceSynchronize());
 

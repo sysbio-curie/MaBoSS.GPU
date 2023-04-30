@@ -3,8 +3,7 @@
 
 #include "simulation.h"
 #include "transition_rates.cu.generated"
-
-#define DIV_UP(x, y) (x + y - 1) / y
+#include "utils.h"
 
 __device__ void compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
 __device__ float compute_transition_entropy(const float* __restrict__ transition_rates);

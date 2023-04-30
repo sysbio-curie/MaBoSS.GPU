@@ -22,10 +22,10 @@ class simulation_runner
 
 	state_t fixed_initial_part_, free_mask_;
 
-	int trajectory_len_limit_;
-	int trajectory_batch_limit_;
-
 public:
+	int trajectory_len_limit;
+	int trajectory_batch_limit;
+
 	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time,
 					  float time_tick, bool discrete_time);
 

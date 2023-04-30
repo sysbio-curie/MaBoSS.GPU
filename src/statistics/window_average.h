@@ -15,14 +15,35 @@ class window_average_stats
 	using result_t = std::vector<std::map<state_t, wnd_state_info_t>>;
 	result_t result_;
 
+	float window_size_;
+	float max_time_;
+	state_t internal_mask_;
+
+	size_t max_traj_len_;
+	size_t max_n_trajectories_;
+
+	thrust::device_ptr<int> steps_by_window_sizes_;
+
 	size_t batch_size_limit_;
+	thrust::device_ptr<state_t> windowed_traj_states_;
+	thrust::device_ptr<float> windowed_traj_slices_;
+	thrust::device_ptr<float> windowed_traj_tr_entropies_;
+	thrust::device_ptr<int> window_indices_;
 
 public:
-	window_average_stats();
+	window_average_stats(float window_size, float max_time, state_t internal_mask, size_t max_traj_len,
+						 size_t max_n_trajectories);
 
-	void process_batch(float window_size, float max_time, state_t internal_mask,
-					   thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-					   thrust::device_ptr<float> traj_tr_entropies, int max_traj_len, int n_trajectories_batch);
+	~window_average_stats();
+
+	void process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+					   thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch);
+
+	void partition_steps_into_windows_size(thrust::device_ptr<float> traj_times, int n_trajectories_batch);
+
+	int partition_steps_into_windows(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+									 thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch,
+									 int& last_batch_end, int& cumul_batch_size);
 
 	void visualize(float window_size, int n_trajectories, const char* const* nodes);
 };

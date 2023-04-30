@@ -32,7 +32,7 @@ int main()
 	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time);
 
 	// for window averages
-	window_average_stats wnd;
+	window_average_stats wnd(window_size, max_time, internals_mask, r.trajectory_len_limit, r.trajectory_batch_limit);
 	finals_stats fin(target_t::FINAL, internals_mask);
 	finals_stats fix(target_t::FIXED);
 
@@ -40,8 +40,7 @@ int main()
 						thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
 						thrust::device_ptr<trajectory_status> traj_statuses, int trajectory_len_limit,
 						int n_trajectories) {
-		wnd.process_batch(window_size, max_time, internals_mask, traj_states, traj_times, traj_tr_entropies,
-						  trajectory_len_limit, n_trajectories);
+		wnd.process_batch(traj_states, traj_times, traj_tr_entropies, n_trajectories);
 		fin.process_batch(last_states, traj_statuses, n_trajectories);
 		fix.process_batch(last_states, traj_statuses, n_trajectories);
 	};
