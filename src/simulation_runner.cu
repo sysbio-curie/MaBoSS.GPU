@@ -38,6 +38,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 {
 	timer t;
 	long long init_time = 0.f, simulation_time = 0.f, preparation_time = 0.f;
+	int remaining_trajs = n_trajectories_;
 
 	t.start();
 
@@ -94,10 +95,13 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 			// move unfinished trajs to the front and update trajectories_in_batch
 			{
 				auto thread_state_begin = thrust::make_zip_iterator(d_last_states, d_last_times, d_rands);
-				trajectories_in_batch =
+				auto remaining_trajectories_in_batch =
 					thrust::partition(thread_state_begin, thread_state_begin + trajectories_in_batch, d_traj_statuses,
 									  eq_ftor<trajectory_status>(trajectory_status::CONTINUE))
 					- thread_state_begin;
+
+				remaining_trajs -= trajectories_in_batch - remaining_trajectories_in_batch;
+				trajectories_in_batch = remaining_trajectories_in_batch;
 			}
 
 			// add new work to the batch
@@ -129,7 +133,7 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 
 			if (print_diags)
 			{
-				std::cout << "simulation_runner> remaining trajs: " << n_trajectories_ << std::endl;
+				std::cout << "simulation_runner> remaining trajs: " << remaining_trajs << std::endl;
 			}
 		}
 	}
