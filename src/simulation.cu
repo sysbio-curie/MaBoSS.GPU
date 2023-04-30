@@ -5,7 +5,7 @@
 #include "transition_rates.cu.generated"
 #include "utils.h"
 
-__device__ void compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
+__device__ float compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
 __device__ float compute_transition_entropy(const float* __restrict__ transition_rates);
 
 __device__ int select_flip_bit(const float* __restrict__ transition_rates, float total_rate,
@@ -99,12 +99,7 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 	while (true)
 	{
 		// get transition rates for current state
-		compute_transition_rates(transition_rates, state);
-
-		// sum up transition rates
-		float total_rate = 0.f;
-		for (int i = 0; i < states_count; i++)
-			total_rate += transition_rates[i];
+		float total_rate = compute_transition_rates(transition_rates, state);
 
 		float transition_entropy = 0.f;
 
