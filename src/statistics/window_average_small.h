@@ -17,6 +17,7 @@ class window_average_small_stats
 	float window_size_;
 	float max_time_;
 	state_t internal_mask_;
+	int noninternal_states_count_;
 
 	size_t max_traj_len_;
 	size_t max_n_trajectories_;
@@ -24,8 +25,8 @@ class window_average_small_stats
 	thrust::device_ptr<float> window_probs_, window_tr_entropies_;
 
 public:
-	window_average_small_stats(float window_size, float max_time, state_t internal_mask, size_t max_traj_len,
-							   size_t max_n_trajectories);
+	window_average_small_stats(float window_size, float max_time, state_t internal_mask, size_t non_internals,
+							   size_t max_traj_len, size_t max_n_trajectories);
 
 	~window_average_small_stats();
 

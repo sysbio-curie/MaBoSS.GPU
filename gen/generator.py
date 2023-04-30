@@ -104,30 +104,6 @@ def generate_heading():
 '''
 
 
-def generate_non_internal_indexer(nodes, cfg):
-    internals = [int(x) for x in get_internals(nodes, cfg)]
-    non_internals = list(set(range(len(nodes))).difference(internals))
-    non_internals.sort()
-
-    func = '''
-__device__ int get_non_internal_index(const state_t& s)
-{
-    int idx = 0;
-'''
-
-    for i, non_intertnal in enumerate(non_internals):
-        func += f'''
-    idx += s.is_set({non_intertnal}) ? {1 << i} : 0;'''
-
-    func += '''
-
-    return idx;
-}
-'''
-
-    return func
-
-
 def generate_transition_entropy_function(nodes, cfg):
 
     internals = [int(x) for x in get_internals(nodes, cfg)]
@@ -232,9 +208,6 @@ def generate_tr_cu_file(tr_cu_file, nodes, variables, cfg):
 
     #generate transition entropy function
     content += generate_transition_entropy_function(nodes, cfg)
-
-    # generate non internal indexer
-    content += generate_non_internal_indexer(nodes, cfg)
 
     generate_if_newer(tr_cu_path, content)
 
