@@ -45,5 +45,5 @@ public:
 									 thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch,
 									 int& last_batch_end, int& cumul_batch_size);
 
-	void visualize(float window_size, int n_trajectories, const char* const* nodes);
+	void visualize(int n_trajectories, const char* const* nodes);
 };

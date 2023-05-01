@@ -11,11 +11,12 @@
 
 class window_average_small_stats
 {
-	std::vector<float> result_probs_;
-	std::vector<float> result_tr_entropies_;
+	std::vector<float> result_probs_, result_tr_entropies_;
+	std::vector<int> result_probs_discrete_;
 
 	float window_size_;
 	float max_time_;
+	bool discrete_time_;
 	state_t internal_mask_;
 	int noninternal_states_count_;
 
@@ -23,10 +24,13 @@ class window_average_small_stats
 	size_t max_n_trajectories_;
 
 	thrust::device_ptr<float> window_probs_, window_tr_entropies_;
+	thrust::device_ptr<int> window_probs_discrete_;
+
+	float get_single_result_prob(int n_trajectories, size_t idx);
 
 public:
-	window_average_small_stats(float window_size, float max_time, state_t internal_mask, size_t non_internals,
-							   size_t max_traj_len, size_t max_n_trajectories);
+	window_average_small_stats(float window_size, float max_time, bool discrete_time, state_t internal_mask,
+							   size_t non_internals, size_t max_traj_len, size_t max_n_trajectories);
 
 	~window_average_small_stats();
 
@@ -35,5 +39,5 @@ public:
 
 	void finalize();
 
-	void visualize(float window_size, int n_trajectories, const char* const* nodes);
+	void visualize(int n_trajectories, const char* const* nodes);
 };

@@ -323,7 +323,7 @@ void window_average_stats::process_batch(thrust::device_ptr<state_t> traj_states
 	}
 }
 
-void window_average_stats::visualize(float window_size, int n_trajectories, const char* const* nodes)
+void window_average_stats::visualize(int n_trajectories, const char* const* nodes)
 {
 	for (size_t i = 0; i < result_.size(); ++i)
 	{
@@ -333,21 +333,21 @@ void window_average_stats::visualize(float window_size, int n_trajectories, cons
 		float wnd_tr_entropy = 0.f;
 		for (const auto& p : w)
 		{
-			auto prob = p.second.first / (n_trajectories * window_size);
-			auto tr_ent = p.second.second / (n_trajectories * window_size);
+			auto prob = p.second.first / (n_trajectories * window_size_);
+			auto tr_ent = p.second.second / (n_trajectories * window_size_);
 
 			entropy += -std::log2(prob) * prob;
 			wnd_tr_entropy += tr_ent;
 		}
 
-		std::cout << "window (" << i * window_size << ", " << (i + 1) * window_size << "]" << std::endl;
+		std::cout << "window (" << i * window_size_ << ", " << (i + 1) * window_size_ << "]" << std::endl;
 		std::cout << "entropy: " << entropy << std::endl;
 		std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
 
 		for (const auto& p : w)
 		{
-			auto prob = p.second.first / (n_trajectories * window_size);
-			auto tr_entropy = p.second.second / (n_trajectories * window_size);
+			auto prob = p.second.first / (n_trajectories * window_size_);
+			auto tr_entropy = p.second.second / (n_trajectories * window_size_);
 			auto state = p.first;
 
 			std::cout << prob << " " << to_string(state, nodes) << std::endl;

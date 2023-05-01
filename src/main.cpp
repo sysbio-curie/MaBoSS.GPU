@@ -6,6 +6,7 @@
 #include "simulation_runner.h"
 #include "statistics/finals.h"
 #include "statistics/window_average.h"
+#include "statistics/window_average_small.h"
 
 int main()
 {
@@ -32,7 +33,8 @@ int main()
 	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time);
 
 	// for window averages
-	window_average_stats wnd(window_size, max_time, internals_mask, r.trajectory_len_limit, r.trajectory_batch_limit);
+	window_average_small_stats wnd(window_size, max_time, discrete_time, internals_mask, states_count - internals_count,
+								   r.trajectory_len_limit, r.trajectory_batch_limit);
 	finals_stats fin(target_t::FINAL, internals_mask);
 	finals_stats fix(target_t::FIXED);
 
@@ -47,7 +49,9 @@ int main()
 
 	r.run_simulation(do_stats);
 
-	wnd.visualize(window_size, sample_count, nodes);
+	wnd.finalize();
+
+	wnd.visualize(sample_count, nodes);
 	fin.visualize(sample_count, nodes);
 	fix.visualize(sample_count, nodes);
 
