@@ -38,14 +38,25 @@ int main()
 
 	stats_composite stats_runner;
 
-	// for window averages
-	stats_runner.add(std::make_unique<window_average_small_stats>(window_size, max_time, discrete_time, internals_mask,
-																  states_count - internals_count,
-																  r.trajectory_len_limit, r.trajectory_batch_limit));
 	// for final states
 	stats_runner.add(std::make_unique<finals_stats>(target_t::FINAL, internals_mask));
 	// for fixed states
 	stats_runner.add(std::make_unique<finals_stats>(target_t::FIXED));
+
+	// for window averages
+	size_t noninternal_nodes = states_count - internals_count;
+	if (noninternal_nodes <= 20)
+	{
+		stats_runner.add(std::make_unique<window_average_small_stats>(
+			window_size, max_time, discrete_time, internals_mask, states_count - internals_count,
+			r.trajectory_len_limit, r.trajectory_batch_limit));
+	}
+	else
+	{
+		// TODO window_average_stats must go last because it modifies traj_states -> FIXME
+		stats_runner.add(std::make_unique<window_average_stats>(window_size, max_time, internals_mask,
+																r.trajectory_len_limit, r.trajectory_batch_limit));
+	}
 
 	// run
 	r.run_simulation(stats_runner);
