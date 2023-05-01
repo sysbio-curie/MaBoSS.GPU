@@ -12,8 +12,15 @@
 finals_stats::finals_stats(target_t target, state_t internals_mask) : target_(target), internals_mask_(internals_mask)
 {}
 
-void finals_stats::process_batch(thrust::device_ptr<state_t> last_states,
+void finals_stats::process_batch(thrust::device_ptr<state_t>, thrust::device_ptr<float>, thrust::device_ptr<float>,
+								 thrust::device_ptr<state_t> last_states,
 								 thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
+{
+	process_batch_internal(last_states, traj_statuses, n_trajectories);
+}
+
+void finals_stats::process_batch_internal(thrust::device_ptr<state_t> last_states,
+										  thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
 	timer t;
 	float copy_sort_reduce_time = 0.f, update_time = 0.f;

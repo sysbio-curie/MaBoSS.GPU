@@ -2,10 +2,7 @@
 
 #include <map>
 
-#include <thrust/device_ptr.h>
-
-#include "../timer.h"
-#include "../types.h"
+#include "stats.h"
 
 enum class target_t
 {
@@ -13,7 +10,7 @@ enum class target_t
 	FIXED
 };
 
-class finals_stats
+class finals_stats : public stats
 {
 	using result_t = std::map<state_t, int>;
 	result_t result_;
@@ -24,8 +21,12 @@ class finals_stats
 public:
 	finals_stats(target_t target, state_t internals_mask = state_t());
 
-	void process_batch(thrust::device_ptr<state_t> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
-					   int n_trajectories_batch);
+	void process_batch_internal(thrust::device_ptr<state_t> last_states,
+								thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories_batch);
 
-	void visualize(int n_trajectories, const char* const* nodes);
+	void process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+					   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
+					   thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories) override;
+
+	void visualize(int n_trajectories, const char* const* nodes) override;
 };

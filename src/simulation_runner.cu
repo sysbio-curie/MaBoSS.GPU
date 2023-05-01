@@ -33,7 +33,7 @@ simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fi
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
 }
 
-void simulation_runner::run_simulation(statistics_func_t run_statistics)
+void simulation_runner::run_simulation(stats_composite& stats_runner)
 {
 	timer t;
 	long long init_time = 0.f, simulation_time = 0.f, preparation_time = 0.f, stats_time = 0.f;
@@ -86,8 +86,8 @@ void simulation_runner::run_simulation(statistics_func_t run_statistics)
 		t.start();
 
 		// compute statistics over the simulated trajs
-		run_statistics(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
-					   trajectory_len_limit, trajectories_in_batch);
+		stats_runner.process_batch(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
+								   trajectories_in_batch);
 
 		t.stop();
 		stats_time += t.millisecs();

@@ -4,12 +4,9 @@
 #include <utility>
 #include <vector>
 
-#include <thrust/device_ptr.h>
+#include "stats.h"
 
-#include "../timer.h"
-#include "../types.h"
-
-class window_average_small_stats
+class window_average_small_stats : public stats
 {
 	std::vector<float> result_probs_, result_tr_entropies_;
 	std::vector<int> result_probs_discrete_;
@@ -34,10 +31,14 @@ public:
 
 	~window_average_small_stats();
 
+	void process_batch_internal(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+								thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch);
+
 	void process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-					   thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch);
+					   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
+					   thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories) override;
 
-	void finalize();
+	void finalize() override;
 
-	void visualize(int n_trajectories, const char* const* nodes);
+	void visualize(int n_trajectories, const char* const* nodes) override;
 };

@@ -182,7 +182,15 @@ int window_average_stats::partition_steps_into_windows(thrust::device_ptr<state_
 }
 
 void window_average_stats::process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-										 thrust::device_ptr<float> traj_tr_entropies, int n_trajectories)
+										 thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t>,
+										 thrust::device_ptr<trajectory_status>, int n_trajectories)
+{
+	process_batch_internal(traj_states, traj_times, traj_tr_entropies, n_trajectories);
+}
+
+void window_average_stats::process_batch_internal(thrust::device_ptr<state_t> traj_states,
+												  thrust::device_ptr<float> traj_times,
+												  thrust::device_ptr<float> traj_tr_entropies, int n_trajectories)
 {
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 
