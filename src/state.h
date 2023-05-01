@@ -1,11 +1,11 @@
 #pragma once
 #include <string>
 
-template <size_t bits>
+template <int bits>
 struct state_t_template
 {
-	static constexpr size_t word_size = 32;
-	static constexpr size_t words_n = (bits + word_size - 1) / word_size;
+	static constexpr int word_size = 32;
+	static constexpr int words_n = (bits + word_size - 1) / word_size;
 
 	uint32_t data[words_n] = { 0 };
 
@@ -131,7 +131,7 @@ struct state_t_template
 	}
 };
 
-template <size_t bits>
+template <int bits>
 std::string to_string(const state_t_template<bits>& s, const char* const* names)
 {
 	bool first = true;
