@@ -9,7 +9,7 @@ void run_initialize_initial_state(int trajectories_count, state_t fixed_part, st
 
 void run_initialize_random(int trajectories_count, unsigned long long seed, curandState* rands);
 
-void run_simulate(float max_time, float time_tick, bool discrete_time, int trajectories_count, int trajectory_limit,
-				  state_t* last_states, float* last_times, curandState* rands, state_t* trajectory_states,
-				  float* trajectory_times, float* trajectory_transition_entropies,
+void run_simulate(float max_time, float time_tick, bool discrete_time, state_t internal_mask, int trajectories_count,
+				  int trajectory_limit, state_t* last_states, float* last_times, curandState* rands,
+				  state_t* trajectory_states, float* trajectory_times, float* trajectory_transition_entropies,
 				  trajectory_status* trajectory_statuses);

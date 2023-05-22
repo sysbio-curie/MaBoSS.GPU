@@ -17,13 +17,14 @@ class simulation_runner
 	bool discrete_time_;
 
 	state_t fixed_initial_part_, free_mask_;
+	state_t internal_mask_;
 
 public:
 	int trajectory_len_limit;
 	int trajectory_batch_limit;
 
 	simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask, float max_time,
-					  float time_tick, bool discrete_time);
+					  float time_tick, bool discrete_time, state_t internal_mask);
 
 	void run_simulation(stats_composite& stats_runner);
 };

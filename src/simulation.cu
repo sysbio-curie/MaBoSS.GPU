@@ -6,7 +6,34 @@
 #include "utils.h"
 
 __device__ float compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
-__device__ float compute_transition_entropy(const float* __restrict__ transition_rates);
+
+__device__ float compute_transition_entropy(const float* __restrict__ transition_rates, const state_t& internal_mask)
+{
+	float entropy = 0.f;
+	float non_internal_total_rate = 0.f;
+
+	for (int i = 0; i < states_count; i++)
+	{
+		if (!internal_mask.is_set(i))
+		{
+			non_internal_total_rate += transition_rates[i];
+		}
+	}
+
+	if (non_internal_total_rate == 0.f)
+		return 0.f;
+
+	for (int i = 0; i < states_count; i++)
+	{
+		if (!internal_mask.is_set(i))
+		{
+			const float tmp_prob = transition_rates[i] / non_internal_total_rate;
+			entropy -= (tmp_prob == 0.f) ? 0.f : log2f(tmp_prob) * tmp_prob;
+		}
+	}
+
+	return entropy;
+}
 
 __device__ int select_flip_bit(const float* __restrict__ transition_rates, float total_rate,
 							   curandState* __restrict__ rand)
@@ -71,8 +98,8 @@ void run_initialize_random(int trajectories_count, unsigned long long seed, cura
 }
 
 template <bool discrete_time>
-__global__ void simulate(float max_time, float time_tick, int trajectories_count, int trajectory_limit,
-						 state_t* __restrict__ last_states, float* __restrict__ last_times,
+__global__ void simulate(float max_time, float time_tick, state_t internal_mask, int trajectories_count,
+						 int trajectory_limit, state_t* __restrict__ last_states, float* __restrict__ last_times,
 						 curandState* __restrict__ rands, state_t* __restrict__ trajectory_states,
 						 float* __restrict__ trajectory_times, float* __restrict__ trajectory_transition_entropies,
 						 trajectory_status* __restrict__ trajectory_statuses)
@@ -119,7 +146,7 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 			time = fminf(time, max_time);
 
 			// if total rate is nonzero, we compute the transition entropy
-			transition_entropy = compute_transition_entropy(transition_rates);
+			transition_entropy = compute_transition_entropy(transition_rates, internal_mask);
 		}
 
 		trajectory_states[step] = state;
@@ -149,17 +176,17 @@ __global__ void simulate(float max_time, float time_tick, int trajectories_count
 	trajectory_statuses[id] = status;
 }
 
-void run_simulate(float max_time, float time_tick, bool discrete_time, int trajectories_count, int trajectory_limit,
-				  state_t* last_states, float* last_times, curandState* rands, state_t* trajectory_states,
-				  float* trajectory_times, float* trajectory_transition_entropies,
+void run_simulate(float max_time, float time_tick, bool discrete_time, state_t internal_mask, int trajectories_count,
+				  int trajectory_limit, state_t* last_states, float* last_times, curandState* rands,
+				  state_t* trajectory_states, float* trajectory_times, float* trajectory_transition_entropies,
 				  trajectory_status* trajectory_statuses)
 {
 	if (discrete_time)
 		simulate<true><<<DIV_UP(trajectories_count, 256), 256>>>(
-			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
+			max_time, time_tick, internal_mask, trajectories_count, trajectory_limit, last_states, last_times, rands,
 			trajectory_states, trajectory_times, trajectory_transition_entropies, trajectory_statuses);
 	else
 		simulate<false><<<DIV_UP(trajectories_count, 256), 256>>>(
-			max_time, time_tick, trajectories_count, trajectory_limit, last_states, last_times, rands,
+			max_time, time_tick, internal_mask, trajectories_count, trajectory_limit, last_states, last_times, rands,
 			trajectory_states, trajectory_times, trajectory_transition_entropies, trajectory_statuses);
 }

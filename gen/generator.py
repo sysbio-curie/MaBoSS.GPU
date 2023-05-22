@@ -104,43 +104,6 @@ def generate_heading():
 '''
 
 
-def generate_transition_entropy_function(nodes, cfg):
-
-    internals = [int(x) for x in get_internals(nodes, cfg)]
-    non_internals = list(set(range(len(nodes))).difference(internals))
-    non_internals.sort()
-
-    aggregate_function = '''
-__device__ float compute_transition_entropy(const float* __restrict__ transition_rates)
-{
-    float entropy = 0.f;
-    float non_internal_total_rate = 0.f;
-    float tmp_prob;
-'''
-
-    for i in non_internals:
-        aggregate_function += f'''
-    non_internal_total_rate += transition_rates[{i}];'''
-
-    aggregate_function += '''
-
-    if (non_internal_total_rate == 0.f)
-        return 0.f;
-'''
-
-    for i in non_internals:
-        aggregate_function += f'''
-    tmp_prob = transition_rates[{i}] / non_internal_total_rate;
-    entropy -= (tmp_prob == 0.f) ? 0.f : log2f(tmp_prob) * tmp_prob;'''
-
-    aggregate_function += '''
-    return entropy;
-}
-'''
-
-    return aggregate_function
-
-
 def generate_aggregate_function(nodes):
 
     aggregate_function = '''
@@ -205,9 +168,6 @@ def generate_tr_cu_file(tr_cu_file, nodes, variables, cfg):
 
     # generate aggregate function
     content += generate_aggregate_function(nodes)
-
-    #generate transition entropy function
-    content += generate_transition_entropy_function(nodes, cfg)
 
     generate_if_newer(tr_cu_path, content)
 
