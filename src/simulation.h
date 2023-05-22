@@ -13,3 +13,5 @@ void run_simulate(float max_time, float time_tick, bool discrete_time, state_t i
 				  int trajectory_limit, state_t* last_states, float* last_times, curandState* rands,
 				  state_t* trajectory_states, float* trajectory_times, float* trajectory_transition_entropies,
 				  trajectory_status* trajectory_statuses);
+
+void set_boolean_function_variable_values(const float* values);

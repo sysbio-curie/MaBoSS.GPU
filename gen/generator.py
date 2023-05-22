@@ -68,7 +68,7 @@ constexpr int states_count = {len(nodes)};
 '''
 
 
-def generate_cfg_header_file(nodes, cfg):
+def generate_cfg_header_file(nodes, cfg, variables):
     internals = get_internals(nodes, cfg)
     fixed, free = get_free_and_fixed_vars(nodes, cfg)
     max_time = get_constant('max_time', cfg)
@@ -76,6 +76,7 @@ def generate_cfg_header_file(nodes, cfg):
     seed = get_constant('seed_pseudorandom', cfg)
     discrete_time = get_constant('discrete_time', cfg)
     sample_count = get_constant('sample_count', cfg)
+    variables_values = [str(variables[x]) for x in list(variables.keys())]
 
     return f'''#pragma once
 #include <utility>
@@ -90,6 +91,9 @@ constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(
 
 constexpr int free_vars_count = {len(free)};
 constexpr int free_vars[{max(len(free), 1)}] = {{ {', '.join(free) if len(free) != 0 else '0'} }};
+
+constexpr int variables_count = {len(variables_values)};
+constexpr float variables[{max(len(variables_values), 1)}] = {{ {', '.join(variables_values) if len(variables_values) != 0 else '0'} }};
 
 constexpr float max_time = (float){max_time if max_time is not None else 10};
 constexpr float time_tick = (float){time_tick if time_tick is not None else 1};
@@ -128,21 +132,58 @@ __device__ float compute_transition_rates(float* __restrict__ transition_rates, 
     return aggregate_function
 
 
-def generate_node_transition_fuction(node, nodes, variables):
+def is_trivial_logic_function(node, nodes, variables):
+    up_expr = node.attributes['rate_up']
+    down_expr = node.attributes['rate_down']
+
+    if type(up_expr) == TernExpr and type(up_expr.cond) == Alias and up_expr.cond.name == 'logic' \
+            and type(down_expr) == TernExpr and type(down_expr.cond) == Alias and down_expr.cond.name == 'logic' \
+            and up_expr.false_branch.evaluate(variables) == 0 and down_expr.true_branch.evaluate(variables) == 0:
+        return True
+
+
+def generate_node_transition_fuction(node, nodes, variables, runtime):
 
     node_name = node.name
-    up_expr = node.attributes['rate_up'].generate_code(variables, nodes, node)
+
+    state_expr = Id(node_name).generate_code(variables, nodes, node, runtime)
+    up_expr = node.attributes['rate_up'].generate_code(
+        variables, nodes, node, runtime)
     down_expr = node.attributes['rate_down'].generate_code(
-        variables, nodes, node)
+        variables, nodes, node, runtime)
 
     return f'''
 __device__ float {node_name}_rate(const state_t& state)
 {{
-    return {Id(node_name).generate_code(variables, nodes, node)} ? 
+    return {state_expr} ? 
         ({down_expr}) : 
         ({up_expr});
 }}
 '''
+
+
+def generate_runtime_variables_code(variables, runtime):
+    content = ''
+
+    # generate constant memory array
+    if runtime and len(variables.keys()) != 0:
+        content += f'''
+__constant__ float constant_vars[{len(variables)}];
+'''
+    content += f'''
+cudaError_t set_variables(const float* vars)
+{{'''
+    if runtime:
+        content += f'''
+    return cudaMemcpyToSymbol(constant_vars, vars, {len(variables)} * sizeof(float));'''
+    else:
+        content += f'''
+    return cudaSuccess;'''
+
+    content += f'''
+}}
+'''
+    return content
 
 
 def generate_if_newer(path, content):
@@ -157,14 +198,18 @@ def generate_if_newer(path, content):
             f.write(content)
 
 
-def generate_tr_cu_file(tr_cu_file, nodes, variables, cfg):
+def generate_tr_cu_file(tr_cu_file, nodes, variables, runtime):
     tr_cu_path = 'src/' + tr_cu_file
 
     content = generate_heading()
 
+    # generate constant memory array and function that sets it
+    content += generate_runtime_variables_code(variables, runtime)
+
     # generate transition functions
     for node in nodes:
-        content += generate_node_transition_fuction(node, nodes, variables)
+        content += generate_node_transition_fuction(
+            node, nodes, variables, runtime)
 
     # generate aggregate function
     content += generate_aggregate_function(nodes)
@@ -180,15 +225,15 @@ def generate_tr_h_file(tr_h_file, nodes, cfg_program):
     generate_if_newer(tr_h_path, content)
 
 
-def generate_cfg_file(cfg_file, nodes, cfg_program):
+def generate_cfg_file(cfg_file, nodes, cfg_program, variables):
     cfg_path = 'src/' + cfg_file
 
-    content = generate_cfg_header_file(nodes, cfg_program)
+    content = generate_cfg_header_file(nodes, cfg_program, variables)
 
     generate_if_newer(cfg_path, content)
 
 
-def generate_files(bnd_stream, cfg_stream):
+def generate_files(bnd_stream, cfg_stream, runtime_flag):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -210,23 +255,24 @@ def generate_files(bnd_stream, cfg_stream):
     tr_h_file = 'transition_rates.h.generated'
     cfg_file = 'cfg_config.h.generated'
 
-    generate_tr_cu_file(tr_cu_file, nodes, variables, cfg_program)
+    generate_tr_cu_file(tr_cu_file, nodes, variables, runtime_flag)
     generate_tr_h_file(tr_h_file, nodes, cfg_program)
-    generate_cfg_file(cfg_file, nodes, cfg_program)
+    generate_cfg_file(cfg_file, nodes, cfg_program, variables)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print('Usage: python gen/generator.py <bnd_file> <cfg_file>')
+    if len(sys.argv) != 3 and len(sys.argv) != 4:
+        print('Usage: python gen/generator.py <bnd_file> <cfg_file> (<runtime_flag>)')
         print('Note: This script should be run from the repository root directory')
         exit(1)
 
     bnd_file = sys.argv[1]
     cfg_file = sys.argv[2]
+    runtime_flag = bool(sys.argv[3] if len(sys.argv) == 4 else '')
 
     with open(bnd_file, 'r') as bnd:
         bnd_stream = bnd.read()
     with open(cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_files(bnd_stream, cfg_stream)
+    generate_files(bnd_stream, cfg_stream, runtime_flag)

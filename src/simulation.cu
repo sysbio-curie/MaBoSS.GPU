@@ -6,6 +6,7 @@
 #include "utils.h"
 
 __device__ float compute_transition_rates(float* __restrict__ transition_rates, const state_t& state);
+cudaError_t set_variables(const float* vars);
 
 __device__ float compute_transition_entropy(const float* __restrict__ transition_rates, const state_t& internal_mask)
 {
@@ -189,4 +190,9 @@ void run_simulate(float max_time, float time_tick, bool discrete_time, state_t i
 		simulate<false><<<DIV_UP(trajectories_count, 256), 256>>>(
 			max_time, time_tick, internal_mask, trajectories_count, trajectory_limit, last_states, last_times, rands,
 			trajectory_states, trajectory_times, trajectory_transition_entropies, trajectory_statuses);
+}
+
+void set_boolean_function_variable_values(const float* values)
+{
+	CUDA_CHECK(set_variables(values));
 }

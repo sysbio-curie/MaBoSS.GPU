@@ -34,7 +34,8 @@ int main()
 	for (int i = 0; i < free_vars_count; i++)
 		free_mask |= state_t(free_vars[i]);
 
-	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time, internals_mask);
+	simulation_runner r(trajs, seed, fixed_part, free_mask, max_time, time_tick, discrete_time, internals_mask,
+						std::vector<float>(variables, variables + variables_count));
 
 	stats_composite stats_runner;
 

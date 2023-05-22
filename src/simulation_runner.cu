@@ -20,7 +20,8 @@ struct eq_ftor
 };
 
 simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fixed_initial_part, state_t free_mask,
-									 float max_time, float time_tick, bool discrete_time, state_t internal_mask)
+									 float max_time, float time_tick, bool discrete_time, state_t internal_mask,
+									 std::vector<float> variables_values)
 	: n_trajectories_(n_trajectories),
 	  seed_(seed),
 	  max_time_(max_time),
@@ -28,7 +29,8 @@ simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fi
 	  discrete_time_(discrete_time),
 	  fixed_initial_part_(fixed_initial_part),
 	  free_mask_(free_mask),
-	  internal_mask_(internal_mask)
+	  internal_mask_(internal_mask),
+	  variables_values_(std::move(variables_values))
 {
 	trajectory_batch_limit = std::min(1'000'000, n_trajectories);
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
@@ -58,6 +60,8 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 
 	run_initialize_initial_state(trajectory_batch_limit, fixed_initial_part_, free_mask_, d_last_states.get(),
 								 d_last_times.get(), d_rands.get());
+
+	set_boolean_function_variable_values(variables_values_.data());
 
 	CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectory_batch_limit * trajectory_len_limit * sizeof(float)));
 
