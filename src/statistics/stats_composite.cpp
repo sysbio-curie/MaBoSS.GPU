@@ -17,7 +17,7 @@ void stats_composite::finalize()
 		stat->finalize();
 }
 
-void stats_composite::visualize(int n_trajectories, const char* const* nodes)
+void stats_composite::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
 	for (auto&& stat : composed_stats_)
 		stat->visualize(n_trajectories, nodes);

@@ -234,7 +234,7 @@ float window_average_small_stats::get_single_result_prob(int n_trajectories, siz
 	}
 }
 
-void window_average_small_stats::visualize(int n_trajectories, const char* const* nodes)
+void window_average_small_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 

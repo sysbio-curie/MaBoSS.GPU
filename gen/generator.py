@@ -8,6 +8,7 @@ from bnd_types import *
 
 import sys
 import os
+import json
 
 
 def get_internals(nodes, cfg):
@@ -19,38 +20,19 @@ def get_internals(nodes, cfg):
             if decl.attr == 'is_internal' and decl.expr.evaluate({}) == True:
                 internals.append(decl.name)
 
-    arr = []
-
-    for i, node in enumerate(nodes):
-        if node.name in internals:
-            arr.append(str(i))
-
-    return arr
+    return internals
 
 
-def get_free_and_fixed_vars(nodes, cfg):
-    initials = []
+def get_initial_states(nodes, cfg):
+    initials = {}
 
     for decl in cfg:
         if type(decl) == AttrDeclaration:
             # TODO here we expect that isstate expression is a constant
             if decl.attr == 'istate':
-                initials.append((decl.name, decl.expr.evaluate({})))
+                initials[decl.name] = decl.expr.evaluate({})
 
-    fixed_vars = set()
-
-    fixed = []
-
-    for state in initials:
-        idx = [node.name for node in nodes].index(state[0])
-        fixed_vars.add(idx)
-        fixed.append(f'{{{idx}, {"true" if state[1] != 0 else "false"}}}')
-
-    free_vars = set(range(len(nodes))).difference(fixed_vars)
-
-    free = [str(x) for x in free_vars]
-
-    return fixed, free
+    return initials
 
 
 def get_constant(name, cfg):
@@ -68,39 +50,27 @@ constexpr int states_count = {len(nodes)};
 '''
 
 
-def generate_cfg_header_file(nodes, cfg, variables):
+def generate_config(nodes, cfg, variables):
     internals = get_internals(nodes, cfg)
-    fixed, free = get_free_and_fixed_vars(nodes, cfg)
+    initials = get_initial_states(nodes, cfg)
     max_time = get_constant('max_time', cfg)
     time_tick = get_constant('time_tick', cfg)
     seed = get_constant('seed_pseudorandom', cfg)
     discrete_time = get_constant('discrete_time', cfg)
     sample_count = get_constant('sample_count', cfg)
-    variables_values = [str(variables[x]) for x in list(variables.keys())]
 
-    return f'''#pragma once
-#include <utility>
-
-constexpr const char* nodes[{len(nodes)}] = {{ {', '.join(['"' + node.name + '"' for node in nodes])} }};
-
-constexpr int internals_count = {len(internals)};
-constexpr int internals[{max(len(internals), 1)}] = {{ {', '.join(internals) if len(internals) != 0 else '0'} }};
-
-constexpr int fixed_vars_count = {len(fixed)};
-constexpr std::pair<int, bool> fixed_vars[{max(len(fixed), 1)}] = {{ {', '.join(fixed) if len(fixed) != 0 else ''} }};
-
-constexpr int free_vars_count = {len(free)};
-constexpr int free_vars[{max(len(free), 1)}] = {{ {', '.join(free) if len(free) != 0 else '0'} }};
-
-constexpr int variables_count = {len(variables_values)};
-constexpr float variables[{max(len(variables_values), 1)}] = {{ {', '.join(variables_values) if len(variables_values) != 0 else '0'} }};
-
-constexpr float max_time = (float){max_time if max_time is not None else 10};
-constexpr float time_tick = (float){time_tick if time_tick is not None else 1};
-constexpr unsigned long long seed = {seed if seed is not None else 0};
-constexpr bool discrete_time = {'true' if discrete_time == 1 else 'false'};
-constexpr int sample_count = {sample_count if sample_count is not None else 1000000};
-'''
+    return {
+        "nodes": [node.name for node in nodes],
+        "internals": internals,
+        "initial_states": initials,
+        "max_time": max_time if max_time is not None else 10,
+        "time_tick": time_tick if time_tick is not None else 1,
+        "seed": int(seed) if seed is not None else 0,
+        "discrete_time": int(discrete_time) if discrete_time is not None else 0,
+        "sample_count": sample_count if sample_count is not None else 1000000,
+        "variables_order": list(variables.keys()),
+        "variables": variables
+    }
 
 
 def generate_heading():
@@ -226,14 +196,13 @@ def generate_tr_h_file(tr_h_file, nodes, cfg_program):
 
 
 def generate_cfg_file(cfg_file, nodes, cfg_program, variables):
-    cfg_path = 'src/' + cfg_file
+    content = generate_config(nodes, cfg_program, variables)
 
-    content = generate_cfg_header_file(nodes, cfg_program, variables)
+    with open(cfg_file, 'w') as f:
+        f.write(json.dumps(content, indent=4))
 
-    generate_if_newer(cfg_path, content)
 
-
-def generate_files(bnd_stream, cfg_stream, runtime_flag):
+def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -253,26 +222,26 @@ def generate_files(bnd_stream, cfg_stream, runtime_flag):
 
     tr_cu_file = 'transition_rates.cu.generated'
     tr_h_file = 'transition_rates.h.generated'
-    cfg_file = 'cfg_config.h.generated'
 
     generate_tr_cu_file(tr_cu_file, nodes, variables, runtime_flag)
     generate_tr_h_file(tr_h_file, nodes, cfg_program)
-    generate_cfg_file(cfg_file, nodes, cfg_program, variables)
+    generate_cfg_file(json_file, nodes, cfg_program, variables)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3 and len(sys.argv) != 4:
-        print('Usage: python gen/generator.py <bnd_file> <cfg_file> (<runtime_flag>)')
+    if len(sys.argv) != 4 and len(sys.argv) != 5:
+        print('Usage: python gen/generator.py <in_bnd_file> <in_cfg_file> <out_json_file> (<runtime_flag>)')
         print('Note: This script should be run from the repository root directory')
         exit(1)
 
     bnd_file = sys.argv[1]
     cfg_file = sys.argv[2]
-    runtime_flag = bool(sys.argv[3] if len(sys.argv) == 4 else '')
+    json_file = sys.argv[3]
+    runtime_flag = bool(sys.argv[4] if len(sys.argv) == 5 else '')
 
     with open(bnd_file, 'r') as bnd:
         bnd_stream = bnd.read()
     with open(cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_files(bnd_stream, cfg_stream, runtime_flag)
+    generate_files(bnd_stream, cfg_stream, json_file, runtime_flag)

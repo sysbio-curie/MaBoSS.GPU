@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <thrust/device_ptr.h>
 
 #include "../timer.h"
@@ -16,5 +19,5 @@ public:
 
 	virtual void finalize() {}
 
-	virtual void visualize(int n_trajectories, const char* const* nodes) = 0;
+	virtual void visualize(int n_trajectories, const std::vector<std::string>& nodes) = 0;
 };

@@ -17,6 +17,9 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
 include(FindCUDA/select_compute_arch)
 CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
 string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
@@ -38,7 +41,7 @@ add_executable(unit_MaBoSSG ${test_files})
 
 # Target MaBoSSG
 add_executable(MaBoSSG src/main)
-target_link_libraries(MaBoSSG MaBoSSGCore)
+target_link_libraries(MaBoSSG MaBoSSGCore nlohmann_json::nlohmann_json)
 
 target_link_libraries(unit_MaBoSSG PRIVATE
 	gtest_main gmock_main MaBoSSGCore)

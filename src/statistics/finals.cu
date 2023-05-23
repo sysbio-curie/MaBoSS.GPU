@@ -98,7 +98,7 @@ void finals_stats::process_batch_internal(thrust::device_ptr<state_t> last_state
 	}
 }
 
-void finals_stats::visualize(int n_trajectories, const char* const* nodes)
+void finals_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
 	if (target_ == target_t::FINAL)
 		std::cout << "final points:" << std::endl;

@@ -331,7 +331,7 @@ void window_average_stats::process_batch_internal(thrust::device_ptr<state_t> tr
 	}
 }
 
-void window_average_stats::visualize(int n_trajectories, const char* const* nodes)
+void window_average_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
 	for (size_t i = 0; i < result_.size(); ++i)
 	{

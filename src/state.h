@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 template <int bits>
 struct state_t_template
@@ -132,7 +133,7 @@ struct state_t_template
 };
 
 template <int bits>
-std::string to_string(const state_t_template<bits>& s, const char* const* names)
+std::string to_string(const state_t_template<bits>& s, const std::vector<std::string>& names)
 {
 	bool first = true;
 	std::string name;

@@ -20,5 +20,5 @@ public:
 
 	void finalize();
 
-	void visualize(int n_trajectories, const char* const* nodes);
+	void visualize(int n_trajectories, const std::vector<std::string>& nodes);
 };

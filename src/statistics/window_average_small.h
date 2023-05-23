@@ -40,5 +40,5 @@ public:
 
 	void finalize() override;
 
-	void visualize(int n_trajectories, const char* const* nodes) override;
+	void visualize(int n_trajectories, const std::vector<std::string>& nodes) override;
 };

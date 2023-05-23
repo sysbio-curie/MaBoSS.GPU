@@ -47,5 +47,5 @@ public:
 					   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
 					   thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories) override;
 
-	void visualize(int n_trajectories, const char* const* nodes) override;
+	void visualize(int n_trajectories, const std::vector<std::string>& nodes) override;
 };
