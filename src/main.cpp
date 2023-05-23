@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "cfg_config.h.generated"
 #include "simulation_runner.h"
 #include "statistics/finals.h"
 #include "statistics/stats_composite.h"
@@ -13,7 +14,6 @@
 
 struct config_t
 {
-	std::vector<std::string> node_names;
 	state_t internals_mask;
 	int internals_count;
 	state_t fixed_part, free_mask;
@@ -39,9 +39,6 @@ std::optional<config_t> build_config(const std::string& file)
 
 	config_t config;
 
-	// node names
-	data["nodes"].get_to(config.node_names);
-
 	// internals
 	{
 		std::vector<std::string> internals_names;
@@ -50,15 +47,15 @@ std::optional<config_t> build_config(const std::string& file)
 
 		for (const auto& internal_name : internals_names)
 		{
-			auto it = std::find(config.node_names.begin(), config.node_names.end(), internal_name);
+			auto it = std::find(node_names.begin(), node_names.end(), internal_name);
 
-			if (it == config.node_names.end())
+			if (it == node_names.end())
 			{
 				std::cout << "Nonexisting node in internals part of config file" << std::endl;
 				return std::nullopt;
 			}
 
-			int index = (int)std::distance(config.node_names.begin(), it);
+			int index = (int)std::distance(node_names.begin(), it);
 			config.internals_mask |= state_t(index);
 		}
 	}
@@ -70,9 +67,9 @@ std::optional<config_t> build_config(const std::string& file)
 
 		for (const auto& initial_state : initial_states)
 		{
-			auto it = std::find(config.node_names.begin(), config.node_names.end(), initial_state.first);
+			auto it = std::find(node_names.begin(), node_names.end(), initial_state.first);
 
-			if (it == config.node_names.end())
+			if (it == node_names.end())
 			{
 				std::cout << "Nonexisting node in initial_states part of config file" << std::endl;
 				return std::nullopt;
@@ -80,14 +77,14 @@ std::optional<config_t> build_config(const std::string& file)
 
 			if (initial_state.second)
 			{
-				int bit = (int)std::distance(config.node_names.begin(), it);
+				int bit = (int)std::distance(node_names.begin(), it);
 				config.fixed_part.set(bit);
 			}
 		}
 
-		for (int i = 0; i < config.node_names.size(); i++)
+		for (int i = 0; i < node_names.size(); i++)
 		{
-			auto it = initial_states.find(config.node_names[i]);
+			auto it = initial_states.find(node_names[i]);
 
 			if (it == initial_states.end())
 				config.free_mask |= state_t(i);
@@ -96,9 +93,7 @@ std::optional<config_t> build_config(const std::string& file)
 
 	// variable values
 	{
-		std::vector<std::string> variables_order;
 		std::map<std::string, float> variables;
-		data["variables_order"].get_to(variables_order);
 		data["variables"].get_to(variables);
 
 		for (const auto& var : variables_order)
@@ -184,7 +179,7 @@ int main(int argc, char** argv)
 	stats_runner.finalize();
 
 	// visualize
-	stats_runner.visualize(config->sample_count, config->node_names);
+	stats_runner.visualize(config->sample_count, node_names);
 
 	return 0;
 }

@@ -66,12 +66,22 @@ def generate_config(nodes, cfg, variables):
         "seed": int(seed) if seed is not None else 0,
         "discrete_time": int(discrete_time) if discrete_time is not None else 0,
         "sample_count": sample_count if sample_count is not None else 1000000,
-        "nodes": [node.name for node in nodes],
         "internals": internals,
         "initial_states": initials,
-        "variables_order": list(variables.keys()),
         "variables": variables
     }
+
+
+def generate_cfg_header_file(nodes, cfg, variables):
+
+    variables_names = ['"' + x + '"' for x in variables.keys()]
+
+    return f'''#include <vector>
+#include <string>
+
+std::vector<std::string> node_names = {{ {', '.join(['"' + node.name + '"' for node in nodes])} }};
+std::vector<std::string> variables_order = {{ {', '.join(variables_names)} }};
+'''
 
 
 def generate_heading():
@@ -209,11 +219,19 @@ def generate_tr_h_file(tr_h_file, nodes, cfg_program):
     generate_if_newer(tr_h_path, content)
 
 
-def generate_cfg_file(cfg_file, nodes, cfg_program, variables):
+def generate_json_file(cfg_file, nodes, cfg_program, variables):
     content = generate_config(nodes, cfg_program, variables)
 
     with open(cfg_file, 'w') as f:
         f.write(json.dumps(content, indent=4))
+
+
+def generate_cfg_file(cfg_file, nodes, cfg_program, variables):
+    cfg_path = 'src/' + cfg_file
+
+    content = generate_cfg_header_file(nodes, cfg_program, variables)
+
+    generate_if_newer(cfg_path, content)
 
 
 def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
@@ -236,10 +254,12 @@ def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
 
     tr_cu_file = 'transition_rates.cu.generated'
     tr_h_file = 'transition_rates.h.generated'
+    cfg_file = 'cfg_config.h.generated'
 
     generate_tr_cu_file(tr_cu_file, nodes, variables, runtime_flag)
     generate_tr_h_file(tr_h_file, nodes, cfg_program)
-    generate_cfg_file(json_file, nodes, cfg_program, variables)
+    generate_cfg_file(cfg_file, nodes, cfg_program, variables)
+    generate_json_file(json_file, nodes, cfg_program, variables)
 
 
 if __name__ == '__main__':
