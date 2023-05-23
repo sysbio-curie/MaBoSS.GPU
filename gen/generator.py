@@ -117,18 +117,31 @@ def generate_node_transition_fuction(node, nodes, variables, runtime):
 
     node_name = node.name
 
-    state_expr = Id(node_name).generate_code(variables, nodes, node, runtime)
-    up_expr = node.attributes['rate_up'].generate_code(
-        variables, nodes, node, runtime)
-    down_expr = node.attributes['rate_down'].generate_code(
-        variables, nodes, node, runtime)
+    state_expr_code = Id(node_name).generate_code(variables, nodes, node, runtime)
+    up_expr = node.attributes['rate_up']
+    down_expr = node.attributes['rate_down']
+
+    if is_trivial_logic_function(node, nodes, variables) and False: # this turns out to be slower
+        return f'''
+__device__ float {node_name}_rate(const state_t& state)
+{{
+    bool logic = {up_expr.cond.generate_code(variables, nodes, node, runtime)};
+    bool is_up = {state_expr_code};
+    
+    const float res = is_up ? {down_expr.false_branch.generate_code(variables, nodes, node, runtime)} : {up_expr.true_branch.generate_code(variables, nodes, node, runtime)};
+    return logic == is_up ? 0.f : res;
+}}
+'''
+
+    up_expr_code = up_expr.generate_code(variables, nodes, node, runtime)
+    down_expr_code = down_expr.generate_code(variables, nodes, node, runtime)
 
     return f'''
 __device__ float {node_name}_rate(const state_t& state)
 {{
-    return {state_expr} ? 
-        ({down_expr}) : 
-        ({up_expr});
+    return {state_expr_code} ? 
+        ({down_expr_code}) : 
+        ({up_expr_code});
 }}
 '''
 
