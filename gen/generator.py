@@ -31,7 +31,7 @@ def get_initial_states(nodes, cfg):
         if type(decl) == AttrDeclaration:
             # TODO here we expect that isstate expression is a constant
             if decl.attr == 'istate':
-                initials[decl.name] = decl.expr.evaluate({})
+                initials[decl.name] = decl.expr.evaluate({}) != 0
 
     return initials
 
@@ -61,14 +61,14 @@ def generate_config(nodes, cfg, variables):
     sample_count = get_constant('sample_count', cfg)
 
     return {
-        "nodes": [node.name for node in nodes],
-        "internals": internals,
-        "initial_states": initials,
         "max_time": max_time if max_time is not None else 10,
         "time_tick": time_tick if time_tick is not None else 1,
         "seed": int(seed) if seed is not None else 0,
         "discrete_time": int(discrete_time) if discrete_time is not None else 0,
         "sample_count": sample_count if sample_count is not None else 1000000,
+        "nodes": [node.name for node in nodes],
+        "internals": internals,
+        "initial_states": initials,
         "variables_order": list(variables.keys()),
         "variables": variables
     }
