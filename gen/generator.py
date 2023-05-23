@@ -9,6 +9,7 @@ from bnd_types import *
 import sys
 import os
 import json
+import argparse
 
 
 def get_internals(nodes, cfg):
@@ -229,19 +230,17 @@ def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4 and len(sys.argv) != 5:
-        print('Usage: python gen/generator.py <in_bnd_file> <in_cfg_file> <out_json_file> (<runtime_flag>)')
-        print('Note: This script should be run from the repository root directory')
-        exit(1)
+    parser = argparse.ArgumentParser(description='Generates CUDA code from .bnd and .cfg files and transforms .cfg file to .json file')
+    parser.add_argument('bnd_file', type=str, help='input .bnd file')
+    parser.add_argument('cfg_file', type=str, help='input .cfg file')
+    parser.add_argument('json_file', type=str, help='output .json file')
+    parser.add_argument('--runtime', action='store_true', help='generate code such that boolean formulae variables can be changed at runtime')
 
-    bnd_file = sys.argv[1]
-    cfg_file = sys.argv[2]
-    json_file = sys.argv[3]
-    runtime_flag = bool(sys.argv[4] if len(sys.argv) == 5 else '')
+    args = parser.parse_args()
 
-    with open(bnd_file, 'r') as bnd:
+    with open(args.bnd_file, 'r') as bnd:
         bnd_stream = bnd.read()
-    with open(cfg_file, 'r') as cfg:
+    with open(args.cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_files(bnd_stream, cfg_stream, json_file, runtime_flag)
+    generate_files(bnd_stream, cfg_stream, args.json_file, args.runtime)
