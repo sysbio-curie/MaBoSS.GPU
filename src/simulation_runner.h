@@ -15,7 +15,7 @@ class simulation_runner
 	bool discrete_time_;
 
 	state_t fixed_initial_part_, free_mask_;
-	state_t internal_mask_;
+	std::vector<int> noninternal_indices_;
 
 	std::vector<float> variables_values_;
 

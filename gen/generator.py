@@ -12,7 +12,7 @@ import json
 import argparse
 
 
-def get_internals(nodes, cfg):
+def get_internals(cfg):
     internals = []
 
     for decl in cfg:
@@ -24,7 +24,7 @@ def get_internals(nodes, cfg):
     return internals
 
 
-def get_initial_states(nodes, cfg):
+def get_initial_states(cfg):
     initials = {}
 
     for decl in cfg:
@@ -51,9 +51,9 @@ constexpr int states_count = {len(nodes)};
 '''
 
 
-def generate_config(nodes, cfg, variables):
-    internals = get_internals(nodes, cfg)
-    initials = get_initial_states(nodes, cfg)
+def generate_config(cfg, variables):
+    internals = get_internals(cfg)
+    initials = get_initial_states(cfg)
     max_time = get_constant('max_time', cfg)
     time_tick = get_constant('time_tick', cfg)
     seed = get_constant('seed_pseudorandom', cfg)
@@ -87,6 +87,83 @@ std::vector<std::string> variables_order = {{ {', '.join(variables_names)} }};
 def generate_heading():
     return '''#include "types.h"
 '''
+
+
+def generate_transition_entropy_function(nodes, cfg, runtime):
+    node_names = [node.name for node in nodes]
+    internals = [node_names.index(x) for x in get_internals(cfg)]
+    non_internals = list(set(range(len(nodes))).difference(internals))
+    non_internals.sort()
+
+    if runtime:
+        aggregate_function = '''
+__constant__ int noninternal_indices[states_count];
+
+cudaError_t set_indices(const int* indices, int count)
+{
+    return cudaMemcpyToSymbol(noninternal_indices, indices, count * sizeof(int));
+}
+
+__device__ float compute_transition_entropy(const float* __restrict__ transition_rates, int internals_count)
+{
+	float entropy = 0.f;
+	float non_internal_total_rate = 0.f;
+
+	for (int i = 0; i < internals_count; i++)
+	{
+        const int index = noninternal_indices[i];
+		non_internal_total_rate += transition_rates[index];
+	}
+
+	if (non_internal_total_rate == 0.f)
+		return 0.f;
+
+	for (int i = 0; i < internals_count; i++)
+	{
+        const int index = noninternal_indices[i];
+        const float tmp_prob = transition_rates[index] / non_internal_total_rate;
+        entropy -= (tmp_prob == 0.f) ? 0.f : log2f(tmp_prob) * tmp_prob;
+	}
+
+	return entropy;
+}
+'''
+        return aggregate_function
+
+    aggregate_function = '''
+cudaError_t set_indices(const int* indices, int count)
+{
+    return cudaSuccess;
+}
+
+__device__ float compute_transition_entropy(const float* __restrict__ transition_rates, int)
+{
+    float entropy = 0.f;
+    float non_internal_total_rate = 0.f;
+    float tmp_prob;
+'''
+
+    for i in non_internals:
+        aggregate_function += f'''
+    non_internal_total_rate += transition_rates[{i}];'''
+
+    aggregate_function += '''
+
+    if (non_internal_total_rate == 0.f)
+        return 0.f;
+'''
+
+    for i in non_internals:
+        aggregate_function += f'''
+    tmp_prob = transition_rates[{i}] / non_internal_total_rate;
+    entropy -= (tmp_prob == 0.f) ? 0.f : log2f(tmp_prob) * tmp_prob;'''
+
+    aggregate_function += '''
+    return entropy;
+}
+'''
+
+    return aggregate_function
 
 
 def generate_aggregate_function(nodes):
@@ -127,11 +204,13 @@ def generate_node_transition_fuction(node, nodes, variables, runtime):
 
     node_name = node.name
 
-    state_expr_code = Id(node_name).generate_code(variables, nodes, node, runtime)
+    state_expr_code = Id(node_name).generate_code(
+        variables, nodes, node, runtime)
     up_expr = node.attributes['rate_up']
     down_expr = node.attributes['rate_down']
 
-    if is_trivial_logic_function(node, nodes, variables) and False: # this turns out to be slower
+    # this turns out to be slower
+    if is_trivial_logic_function(node, nodes, variables) and False:
         return f'''
 __device__ float {node_name}_rate(const state_t& state)
 {{
@@ -192,21 +271,24 @@ def generate_if_newer(path, content):
             f.write(content)
 
 
-def generate_tr_cu_file(tr_cu_file, nodes, variables, runtime):
+def generate_tr_cu_file(tr_cu_file, nodes, variables, cfg, runtime_vars, runtime_inter):
     tr_cu_path = 'src/' + tr_cu_file
 
     content = generate_heading()
 
     # generate constant memory array and function that sets it
-    content += generate_runtime_variables_code(variables, runtime)
+    content += generate_runtime_variables_code(variables, runtime_vars)
 
     # generate transition functions
     for node in nodes:
         content += generate_node_transition_fuction(
-            node, nodes, variables, runtime)
+            node, nodes, variables, runtime_vars)
 
     # generate aggregate function
     content += generate_aggregate_function(nodes)
+
+    # generate transition entropy function
+    content += generate_transition_entropy_function(nodes, cfg, runtime_inter)
 
     generate_if_newer(tr_cu_path, content)
 
@@ -219,8 +301,8 @@ def generate_tr_h_file(tr_h_file, nodes, cfg_program):
     generate_if_newer(tr_h_path, content)
 
 
-def generate_json_file(cfg_file, nodes, cfg_program, variables):
-    content = generate_config(nodes, cfg_program, variables)
+def generate_json_file(cfg_file, cfg_program, variables):
+    content = generate_config(cfg_program, variables)
 
     with open(cfg_file, 'w') as f:
         f.write(json.dumps(content, indent=4))
@@ -234,7 +316,7 @@ def generate_cfg_file(cfg_file, nodes, cfg_program, variables):
     generate_if_newer(cfg_path, content)
 
 
-def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
+def generate_files(bnd_stream, cfg_stream, json_file, runtime_vars_flag, runtime_inter_flag):
 
     bnd_program = bnd_parser.parse(bnd_stream, lexer=bnd_lexer)
     cfg_program = cfg_parser.parse(cfg_stream, lexer=cfg_lexer)
@@ -256,18 +338,23 @@ def generate_files(bnd_stream, cfg_stream, json_file, runtime_flag):
     tr_h_file = 'transition_rates.h.generated'
     cfg_file = 'cfg_config.h.generated'
 
-    generate_tr_cu_file(tr_cu_file, nodes, variables, runtime_flag)
+    generate_tr_cu_file(tr_cu_file, nodes, variables,
+                        cfg_program, runtime_vars_flag, runtime_inter_flag)
     generate_tr_h_file(tr_h_file, nodes, cfg_program)
     generate_cfg_file(cfg_file, nodes, cfg_program, variables)
-    generate_json_file(json_file, nodes, cfg_program, variables)
+    generate_json_file(json_file, cfg_program, variables)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generates CUDA code from .bnd and .cfg files and transforms .cfg file to .json file')
+    parser = argparse.ArgumentParser(
+        description='Generates CUDA code from .bnd and .cfg files and transforms .cfg file to .json file')
     parser.add_argument('bnd_file', type=str, help='input .bnd file')
     parser.add_argument('cfg_file', type=str, help='input .cfg file')
     parser.add_argument('json_file', type=str, help='output .json file')
-    parser.add_argument('--runtime', action='store_true', help='generate code such that boolean formulae variables can be changed at runtime')
+    parser.add_argument('--runtime-variables', action='store_true',
+                        help='generate code such that boolean formulae variables can be changed at runtime')
+    parser.add_argument('--runtime-internals', action='store_true',
+                        help='generate code such that internal nodes can be changed at runtime')
 
     args = parser.parse_args()
 
@@ -276,4 +363,5 @@ if __name__ == '__main__':
     with open(args.cfg_file, 'r') as cfg:
         cfg_stream = cfg.read()
 
-    generate_files(bnd_stream, cfg_stream, args.json_file, args.runtime)
+    generate_files(bnd_stream, cfg_stream, args.json_file,
+                   args.runtime_variables, args.runtime_internals)

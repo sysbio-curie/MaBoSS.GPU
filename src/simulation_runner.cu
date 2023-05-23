@@ -29,11 +29,16 @@ simulation_runner::simulation_runner(int n_trajectories, seed_t seed, state_t fi
 	  discrete_time_(discrete_time),
 	  fixed_initial_part_(fixed_initial_part),
 	  free_mask_(free_mask),
-	  internal_mask_(internal_mask),
 	  variables_values_(std::move(variables_values))
 {
 	trajectory_batch_limit = std::min(1'000'000, n_trajectories);
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
+
+	for (int i = 0; i < states_count; i++)
+	{
+		if (!internal_mask.is_set(i))
+			noninternal_indices_.push_back(i);
+	}
 }
 
 void simulation_runner::run_simulation(stats_composite& stats_runner)
@@ -62,6 +67,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 								 d_last_times.get(), d_rands.get());
 
 	set_boolean_function_variable_values(variables_values_.data());
+	set_noninternal_indices(noninternal_indices_.data(), noninternal_indices_.size());
 
 	CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectory_batch_limit * trajectory_len_limit * sizeof(float)));
 
@@ -79,12 +85,12 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 		t.start();
 
 		// run single simulation
-		run_simulate(max_time_, time_tick_, discrete_time_, internal_mask_, trajectories_in_batch, trajectory_len_limit,
-					 d_last_states.get(), d_last_times.get(), d_rands.get(), d_traj_states.get(), d_traj_times.get(),
-					 d_traj_tr_entropies.get(), d_traj_statuses.get());
+		run_simulate(max_time_, time_tick_, discrete_time_, (int)noninternal_indices_.size(), trajectories_in_batch,
+					 trajectory_len_limit, d_last_states.get(), d_last_times.get(), d_rands.get(), d_traj_states.get(),
+					 d_traj_times.get(), d_traj_tr_entropies.get(), d_traj_statuses.get());
 
 		CUDA_CHECK(cudaDeviceSynchronize());
-
+		
 		t.stop();
 		simulation_time += t.millisecs();
 
