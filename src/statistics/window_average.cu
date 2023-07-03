@@ -259,21 +259,26 @@ void window_average_stats::process_batch_internal(thrust::device_ptr<state_t> tr
 
 		t.start();
 
-		// we compute the size of the result (sum of unique states in each window)
-		size_t result_size = thrust::unique_count(key_begin, key_begin + batch_size);
+		d_res_window_idxs.resize(batch_size);
+		d_res_states.resize(batch_size);
+		d_res_times.resize(batch_size);
+		d_res_tr_entropies.resize(batch_size);
+
+		// reduce sorted array of (state, (time_slice, weighted_tr_entropy))
+		// after this we have unique states in the first result array and sum of slices and weighted entropies in the
+		// second result
+		auto reduce_end =
+			thrust::reduce_by_key(key_begin, key_begin + batch_size,
+								  thrust::make_zip_iterator(windowed_traj_slices_, weighted_tr_entropy_begin),
+								  thrust::make_zip_iterator(d_res_window_idxs.begin(), d_res_states.begin()),
+								  thrust::make_zip_iterator(d_res_times.begin(), d_res_tr_entropies.begin()));
+
+		size_t result_size = thrust::get<0>(reduce_end.first.get_iterator_tuple()) - d_res_window_idxs.begin();
 
 		d_res_window_idxs.resize(result_size);
 		d_res_states.resize(result_size);
 		d_res_times.resize(result_size);
 		d_res_tr_entropies.resize(result_size);
-
-		// reduce sorted array of (state, (time_slice, weighted_tr_entropy))
-		// after this we have unique states in the first result array and sum of slices and weighted entropies in the
-		// second result
-		thrust::reduce_by_key(key_begin, key_begin + batch_size,
-							  thrust::make_zip_iterator(windowed_traj_slices_, weighted_tr_entropy_begin),
-							  thrust::make_zip_iterator(d_res_window_idxs.begin(), d_res_states.begin()),
-							  thrust::make_zip_iterator(d_res_times.begin(), d_res_tr_entropies.begin()));
 
 		t.stop();
 

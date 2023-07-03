@@ -60,13 +60,16 @@ void finals_stats::process_batch_internal(thrust::device_ptr<state_t> last_state
 
 	thrust::sort(final_states.begin(), final_states.end());
 
-	size_t unique_fixed_points_size = thrust::unique_count(final_states.begin(), final_states.end());
+	thrust::device_vector<state_t> unique_fixed_points(finished_trajs_size);
+	thrust::device_vector<int> unique_fixed_points_count(finished_trajs_size);
 
-	thrust::device_vector<state_t> unique_fixed_points(unique_fixed_points_size);
-	thrust::device_vector<int> unique_fixed_points_count(unique_fixed_points_size);
+	auto reduce_end = thrust::reduce_by_key(final_states.begin(), final_states.end(), thrust::make_constant_iterator(1),
+											unique_fixed_points.begin(), unique_fixed_points_count.begin());
 
-	thrust::reduce_by_key(final_states.begin(), final_states.end(), thrust::make_constant_iterator(1),
-						  unique_fixed_points.begin(), unique_fixed_points_count.begin());
+	size_t unique_fixed_points_size = reduce_end.first - unique_fixed_points.begin();
+
+	unique_fixed_points.resize(unique_fixed_points_size);
+	unique_fixed_points_count.resize(unique_fixed_points_size);
 
 	t.stop();
 	copy_sort_reduce_time = t.millisecs();
