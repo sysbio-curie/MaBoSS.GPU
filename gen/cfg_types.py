@@ -21,3 +21,15 @@ class AttrDeclaration(NamedTuple):
 
     def evaluate(self, variables):
         return self.expr.evaluate(variables)
+
+class IstateDeclaration(NamedTuple):
+    name: str
+    decl1: object
+    decl2: object
+    
+class IstateProbability(NamedTuple):
+    expr: object
+    value: int
+    
+    def evaluate(self, variables):
+        return self.expr.evaluate(variables)

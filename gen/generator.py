@@ -24,15 +24,27 @@ def get_internals(cfg):
     return internals
 
 
-def get_initial_states(cfg):
+def get_initial_states(cfg, istates):
     initials = {}
 
     for decl in cfg:
         if type(decl) == AttrDeclaration:
             # TODO here we expect that isstate expression is a constant
             if decl.attr == 'istate':
-                initials[decl.name] = decl.expr.evaluate({}) != 0
-
+                value = decl.expr.evaluate({})
+                if isinstance(value, bool):
+                    initials[decl.name] = 1.0 if value else 0.0
+                else:
+                    initials[decl.name] = float(value) if value >= 0 else 0.5
+                
+    for istate, values in istates.items():
+        if 1 in values.keys() and 0 in values.keys():
+            initials[istate] = values[1]/(values[0]+values[1])
+        elif 1 in values.keys():
+            initials[istate] = 1.0
+        else:
+            initials[istate] = 0.0
+            
     return initials
 
 
@@ -51,9 +63,9 @@ constexpr int states_count = {len(nodes)};
 '''
 
 
-def generate_config(cfg, variables):
+def generate_config(cfg, variables, istates):
     internals = get_internals(cfg)
-    initials = get_initial_states(cfg)
+    initials = get_initial_states(cfg, istates)
     max_time = get_constant('max_time', cfg)
     time_tick = get_constant('time_tick', cfg)
     seed = get_constant('seed_pseudorandom', cfg)
@@ -301,8 +313,8 @@ def generate_tr_h_file(tr_h_file, nodes, cfg_program):
     generate_if_newer(tr_h_path, content)
 
 
-def generate_json_file(cfg_file, cfg_program, variables):
-    content = generate_config(cfg_program, variables)
+def generate_json_file(cfg_file, cfg_program, variables, istates):
+    content = generate_config(cfg_program, variables, istates)
 
     with open(cfg_file, 'w') as f:
         f.write(json.dumps(content, indent=4))
@@ -327,12 +339,18 @@ def generate_files(bnd_stream, cfg_stream, json_file, runtime_vars_flag, runtime
 
     # get list of nodes
     nodes = bnd_program
-
+    
     # get dict of variables and their assignments
     variables = {}
+    istates = {}
     for declaration in cfg_program:
         if type(declaration) is VarDeclaration:
             variables[declaration.name] = declaration.evaluate(variables)
+        if type(declaration) is IstateDeclaration:
+            istates[declaration.name] = {
+                declaration.decl1.value : declaration.decl1.evaluate(variables),
+                declaration.decl2.value : declaration.decl2.evaluate(variables)
+            }
 
     tr_cu_file = 'transition_rates.cu.generated'
     tr_h_file = 'transition_rates.h.generated'
@@ -342,7 +360,7 @@ def generate_files(bnd_stream, cfg_stream, json_file, runtime_vars_flag, runtime
                         cfg_program, runtime_vars_flag, runtime_inter_flag)
     generate_tr_h_file(tr_h_file, nodes, cfg_program)
     generate_cfg_file(cfg_file, nodes, cfg_program, variables)
-    generate_json_file(json_file, cfg_program, variables)
+    generate_json_file(json_file, cfg_program, variables, istates)
 
 
 if __name__ == '__main__':
