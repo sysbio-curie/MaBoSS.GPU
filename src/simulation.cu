@@ -34,8 +34,9 @@ __global__ void initialize_random(int trajectories_count, unsigned long long see
 	curand_init(seed, id, 0, rands + id);
 }
 
-__global__ void initialize_initial_state(int trajectories_count, state_t* __restrict__ states, float* __restrict__ times,
-										 curandState* __restrict__ rands, float* initial_probas)
+__global__ void initialize_initial_state(int trajectories_count, state_t* __restrict__ states,
+										 float* __restrict__ times, curandState* __restrict__ rands,
+										 float* initial_probas)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -59,11 +60,11 @@ __global__ void initialize_initial_state(int trajectories_count, state_t* __rest
 	times[id] = 0.f;
 }
 
-void run_initialize_initial_state(int trajectories_count, state_t* states, float* times, 
-								  curandState* rands, float* initial_probas)
+void run_initialize_initial_state(int trajectories_count, state_t* states, float* times, curandState* rands,
+								  float* initial_probas)
 {
-	initialize_initial_state<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count,
-																	   states, times, rands, initial_probas);
+	initialize_initial_state<<<DIV_UP(trajectories_count, 256), 256>>>(trajectories_count, states, times, rands,
+																	   initial_probas);
 }
 
 void run_initialize_random(int trajectories_count, unsigned long long seed, curandState* rands)

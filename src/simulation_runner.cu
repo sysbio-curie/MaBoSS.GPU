@@ -1,6 +1,6 @@
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
-#include <thrust/device_vector.h> 
+#include <thrust/device_vector.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/partition.h>
 
@@ -20,9 +20,9 @@ struct eq_ftor
 	__device__ bool operator()(T other) { return other == it; }
 };
 
-simulation_runner::simulation_runner(int n_trajectories, seed_t seed, 
-									 float max_time, float time_tick, bool discrete_time, state_t internal_mask,
-									 std::vector<float> variables_values, std::vector<float> initial_values)
+simulation_runner::simulation_runner(int n_trajectories, seed_t seed, float max_time, float time_tick,
+									 bool discrete_time, state_t internal_mask, std::vector<float> variables_values,
+									 std::vector<float> initial_values)
 	: n_trajectories_(n_trajectories),
 	  seed_(seed),
 	  max_time_(max_time),
@@ -59,14 +59,14 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 	auto d_traj_times = thrust::device_malloc<float>(trajectory_batch_limit * trajectory_len_limit);
 	auto d_traj_tr_entropies = thrust::device_malloc<float>(trajectory_batch_limit * trajectory_len_limit);
 	auto d_traj_statuses = thrust::device_malloc<trajectory_status>(trajectory_batch_limit);
+	thrust::device_vector<float> d_initial_values = initial_values_;
 
 	// initialize states
 	run_initialize_random(trajectory_batch_limit, seed_, d_rands.get());
 
-	thrust::device_vector<float> d_initial_values = initial_values_;
-	run_initialize_initial_state(trajectory_batch_limit, d_last_states.get(),
-								 d_last_times.get(), d_rands.get(), thrust::raw_pointer_cast(d_initial_values.data()));
-	
+	run_initialize_initial_state(trajectory_batch_limit, d_last_states.get(), d_last_times.get(), d_rands.get(),
+								 thrust::raw_pointer_cast(d_initial_values.data()));
+
 	set_boolean_function_variable_values(variables_values_.data());
 	set_noninternal_indices(noninternal_indices_.data(), noninternal_indices_.size());
 
@@ -91,7 +91,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 					 d_traj_times.get(), d_traj_tr_entropies.get(), d_traj_statuses.get());
 
 		CUDA_CHECK(cudaDeviceSynchronize());
-		
+
 		t.stop();
 		simulation_time += t.millisecs();
 
@@ -127,10 +127,10 @@ void simulation_runner::run_simulation(stats_composite& stats_runner)
 
 				if (new_batch_addition)
 				{
-					run_initialize_initial_state(new_batch_addition,
-												 d_last_states.get() + trajectories_in_batch,
+					run_initialize_initial_state(new_batch_addition, d_last_states.get() + trajectories_in_batch,
 												 d_last_times.get() + trajectories_in_batch,
-												 d_rands.get() + trajectories_in_batch, thrust::raw_pointer_cast(d_initial_values.data()));
+												 d_rands.get() + trajectories_in_batch,
+												 thrust::raw_pointer_cast(d_initial_values.data()));
 
 
 					trajectories_in_batch += new_batch_addition;

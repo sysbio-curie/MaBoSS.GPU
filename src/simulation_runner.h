@@ -23,8 +23,8 @@ public:
 	int trajectory_len_limit;
 	int trajectory_batch_limit;
 
-	simulation_runner(int n_trajectories, seed_t seed, float max_time,
-					  float time_tick, bool discrete_time, state_t internal_mask, std::vector<float> variables_values, std::vector<float> initial_values);
+	simulation_runner(int n_trajectories, seed_t seed, float max_time, float time_tick, bool discrete_time,
+					  state_t internal_mask, std::vector<float> variables_values, std::vector<float> initial_values);
 
 	void run_simulation(stats_composite& stats_runner);
 };

@@ -65,17 +65,19 @@ std::optional<config_t> build_config(const std::string& file)
 		std::map<std::string, float> initial_states;
 		data["initial_states"].get_to(initial_states);
 
-		config.initial_values.resize(node_names.size());
-		for (int i = 0; i < node_names.size(); i++)
+		config.initial_values.resize(node_names.size(), 0.5f);
+		for (const auto& initial_state : initial_states)
 		{
-			auto it = initial_states.find(node_names[i]);
-			
-			if (it == initial_states.end()) {
-				config.initial_values[i] = 0.5f;
-			} else {
-				config.initial_values[i] = it->second;
+			auto it = std::find(node_names.begin(), node_names.end(), initial_state.first);
+
+			if (it == node_names.end())
+			{
+				std::cout << "Nonexisting node in initial state part of config file" << std::endl;
+				return std::nullopt;
 			}
-		
+
+			int index = (int)std::distance(node_names.begin(), it);
+			config.initial_values[index] = initial_state.second;
 		}
 	}
 
@@ -134,8 +136,8 @@ int main(int argc, char** argv)
 	if (!config)
 		return 1;
 
-	simulation_runner r(config->sample_count, config->seed, config->max_time, config->time_tick, config->discrete_time, 
-					    config->internals_mask, config->variable_values, config->initial_values);
+	simulation_runner r(config->sample_count, config->seed, config->max_time, config->time_tick, config->discrete_time,
+						config->internals_mask, config->variable_values, config->initial_values);
 
 	stats_composite stats_runner;
 

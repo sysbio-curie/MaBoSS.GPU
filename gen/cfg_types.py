@@ -24,12 +24,13 @@ class AttrDeclaration(NamedTuple):
 
 class IstateDeclaration(NamedTuple):
     name: str
-    decl1: object
-    decl2: object
-    
+    prob1: object
+    prob2: object
+
+
 class IstateProbability(NamedTuple):
-    expr: object
+    value_prob: object
     value: int
-    
+
     def evaluate(self, variables):
-        return self.expr.evaluate(variables)
+        return self.value_prob.evaluate(variables)
