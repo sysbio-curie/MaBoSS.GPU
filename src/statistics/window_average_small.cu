@@ -2,11 +2,12 @@
 
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
+#include <fstream>
 
 #include "../diagnostics.h"
 #include "../utils.h"
 #include "window_average_small.h"
-#include <fstream>
+
 __device__ int get_non_internal_index(const state_t& s, const state_t& internal_mask)
 {
 	int idx = 0;
@@ -297,16 +298,15 @@ void window_average_small_stats::writeCSV(int n_trajectories, const std::vector<
 			max_states = std::max(max_states, num_states);
 		}
 		
-		// writing header
-		ofs << "Time\tTH\tErrorTH\tH\tHD=0\t";
+		// Writing header
+		ofs << "Time\tTH\tErrorTH\tH\tHD=0";
 		for (int i = 0; i < max_states; i++)
 		{
-			ofs << "State\tProba\tErrorProba";
-			if (i < max_states - 1) {
-				ofs << "\t";
-			}
+			ofs << "\tState\tProba\tErrorProba";
 		}
+		ofs << std::endl;
 		
+		// Writing trajectories
 		for (size_t i = 0; i < windows_count; ++i)
 		{
 			float entropy = 0.f;
@@ -323,10 +323,7 @@ void window_average_small_stats::writeCSV(int n_trajectories, const std::vector<
 				entropy += -std::log2(prob) * prob;
 			}
 			ofs << i * window_size_ << "\t";
-			// std::cout << "window (" << i * window_size_ << ", " << (i + 1) * window_size_ << "]" << std::endl;
-			// std::cout << "entropy: " << entropy << std::endl;
-			// std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
-			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f << "\t";
+			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f;
 
 			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 			{
@@ -335,12 +332,7 @@ void window_average_small_stats::writeCSV(int n_trajectories, const std::vector<
 				if (prob == 0.f)
 					continue;
 
-				std::cout << prob << " " << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << std::endl;
-				ofs << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << "\t" << prob << "\t" << 0.f;
-				if (s_idx < (noninternal_states_count_ - 1))
-				{
-					ofs << "\t";
-				}
+				ofs << "\t" << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << "\t" << prob << "\t" << 0.f;
 			}
 			ofs << std::endl;
 		}
