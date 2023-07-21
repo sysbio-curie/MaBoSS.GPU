@@ -6,7 +6,7 @@
 #include "../diagnostics.h"
 #include "../utils.h"
 #include "window_average_small.h"
-
+#include <fstream>
 __device__ int get_non_internal_index(const state_t& s, const state_t& internal_mask)
 {
 	int idx = 0;
@@ -266,6 +266,83 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 				continue;
 
 			std::cout << prob << " " << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << std::endl;
+		}
+	}
+}
+
+
+void window_average_small_stats::writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+{
+	size_t windows_count = std::ceil(max_time_ / window_size_);
+	std::ofstream ofs;
+	
+	ofs.open(prefix + "_probtraj.csv");
+	if (ofs) 
+	{
+		// Computing max states for header
+		int max_states = 0;
+		for (size_t i = 0; i < windows_count; ++i)
+		{
+			int num_states = 0;			
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+					
+				num_states += 1;
+			}
+			
+			max_states = std::max(max_states, num_states);
+		}
+		
+		// writing header
+		ofs << "Time\tTH\tErrorTH\tH\tHD=0\t";
+		for (int i = 0; i < max_states; i++)
+		{
+			ofs << "State\tProba\tErrorProba";
+			if (i < max_states - 1) {
+				ofs << "\t";
+			}
+		}
+		
+		for (size_t i = 0; i < windows_count; ++i)
+		{
+			float entropy = 0.f;
+			float wnd_tr_entropy = result_tr_entropies_[i] / n_trajectories;
+			wnd_tr_entropy /= discrete_time_ ? 1 : window_size_;
+
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+
+				entropy += -std::log2(prob) * prob;
+			}
+			ofs << i * window_size_ << "\t";
+			// std::cout << "window (" << i * window_size_ << ", " << (i + 1) * window_size_ << "]" << std::endl;
+			// std::cout << "entropy: " << entropy << std::endl;
+			// std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
+			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f << "\t";
+
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+
+				std::cout << prob << " " << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << std::endl;
+				ofs << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << "\t" << prob << "\t" << 0.f;
+				if (s_idx < (noninternal_states_count_ - 1))
+				{
+					ofs << "\t";
+				}
+			}
+			ofs << std::endl;
 		}
 	}
 }

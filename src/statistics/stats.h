@@ -20,4 +20,6 @@ public:
 	virtual void finalize() {}
 
 	virtual void visualize(int n_trajectories, const std::vector<std::string>& nodes) = 0;
+	virtual void writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) = 0;
+
 };

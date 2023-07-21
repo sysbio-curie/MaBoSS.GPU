@@ -110,3 +110,8 @@ void finals_stats::visualize(int n_trajectories, const std::vector<std::string>&
 		std::cout << (float)p.second / (float)n_trajectories << " " << to_string(p.first, nodes) << std::endl;
 	}
 }
+
+void finals_stats::writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+{
+	
+}
