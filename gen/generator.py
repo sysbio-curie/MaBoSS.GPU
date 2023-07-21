@@ -360,7 +360,7 @@ def generate_files(
         if type(declaration) is IstateDeclaration:
             istates[declaration.name] = {
                 declaration.prob1.value: declaration.prob1.evaluate(variables),
-                declaration.prob2.value: declaration.prob1.evaluate(variables),
+                declaration.prob2.value: declaration.prob2.evaluate(variables),
             }
 
     tr_cu_file = "transition_rates.cu.generated"
