@@ -126,16 +126,24 @@ int main(int argc, char** argv)
 {
 	std::vector<std::string> args(argv + 1, argv + argc);
 
-	if (args.size() != 1)
+	if (!(args.size() == 1 || ( args.size() == 3 || args[0] == "-o")))
 	{
-		std::cout << "Usage: MaBoSSG <config.json>" << std::endl;
+		std::cout << "Usage: MaBoSSG [-o prefix] <config.json>" << std::endl;
 		return 1;
+	}
+
+	std::string output_prefix = "";
+	std::string config_path = args[0];
+	if (args[0] == "-o") 
+	{
+		output_prefix = args[1];
+		config_path = args[2];
 	}
 
 	std::optional<config_t> config;
 	try
 	{
-		config = build_config(args[0]);
+		config = build_config(config_path);
 	}
 	catch (std::exception& e)
 	{
@@ -181,5 +189,10 @@ int main(int argc, char** argv)
 	// visualize
 	stats_runner.visualize(config->sample_count, node_names);
 
+	if (output_prefix.size() > 0)
+	{
+		stats_runner.writeCSV(config->sample_count, node_names, output_prefix);
+	}
+	
 	return 0;
 }
