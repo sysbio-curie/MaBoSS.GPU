@@ -50,6 +50,6 @@ After the code generation and compilation steps, the user can play with these mo
 ## Next steps
 
 There is still plenty of work on MaBoSSG project. The most imporant ones on our radar are:
-- Outputting the results in a reasonable format
-- Support for mutants analysis without recompilation
-- Python wrapper 
+- [x] Outputting the results in a reasonable format
+- [ ] Support for mutants analysis without recompilation
+- [ ] Python wrapper 
