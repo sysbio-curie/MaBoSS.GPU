@@ -142,7 +142,7 @@ std::string to_string(const state_t_template<bits>& s, const std::vector<std::st
 		if (s.is_set(i))
 		{
 			if (!first)
-				name += "-";
+				name += " -- ";
 			first = false;
 			name += names[i];
 		}

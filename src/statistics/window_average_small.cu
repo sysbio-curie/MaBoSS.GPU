@@ -2,6 +2,7 @@
 
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
+#include <fstream>
 
 #include "../diagnostics.h"
 #include "../utils.h"
@@ -266,6 +267,74 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 				continue;
 
 			std::cout << prob << " " << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << std::endl;
+		}
+	}
+}
+
+
+void window_average_small_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+{
+	size_t windows_count = std::ceil(max_time_ / window_size_);
+	std::ofstream ofs;
+	
+	ofs.open(prefix + "_probtraj.csv");
+	if (ofs) 
+	{
+		// Computing max states for header
+		int max_states = 0;
+		for (size_t i = 0; i < windows_count; ++i)
+		{
+			int num_states = 0;			
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+					
+				num_states += 1;
+			}
+			
+			max_states = std::max(max_states, num_states);
+		}
+		
+		// Writing header
+		ofs << "Time\tTH\tErrorTH\tH\tHD=0";
+		for (int i = 0; i < max_states; i++)
+		{
+			ofs << "\tState\tProba\tErrorProba";
+		}
+		ofs << std::endl;
+		
+		// Writing trajectories
+		for (size_t i = 0; i < windows_count; ++i)
+		{
+			float entropy = 0.f;
+			float wnd_tr_entropy = result_tr_entropies_[i] / n_trajectories;
+			wnd_tr_entropy /= discrete_time_ ? 1 : window_size_;
+
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+
+				entropy += -std::log2(prob) * prob;
+			}
+			ofs << i * window_size_ << "\t";
+			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f;
+
+			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			{
+				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
+
+				if (prob == 0.f)
+					continue;
+
+				ofs << "\t" << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << "\t" << prob << "\t" << 0.f;
+			}
+			ofs << std::endl;
 		}
 	}
 }

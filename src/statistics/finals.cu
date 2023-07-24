@@ -1,4 +1,6 @@
-﻿#include <thrust/copy.h>
+﻿#include <fstream>
+
+#include <thrust/copy.h>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -108,5 +110,38 @@ void finals_stats::visualize(int n_trajectories, const std::vector<std::string>&
 	for (const auto& p : result_)
 	{
 		std::cout << (float)p.second / (float)n_trajectories << " " << to_string(p.first, nodes) << std::endl;
+	}
+}
+
+void finals_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+{
+	if (target_ == target_t::FIXED)
+	{
+		std::ofstream ofs;
+
+		ofs.open(prefix + "_fp.csv");
+		if (ofs)
+		{
+			ofs << "Fixed Points (" << result_.size() << ")" << std::endl;
+			ofs << "FP\tProba\tState";
+
+			for (auto& node : nodes)
+			{
+				ofs << "\t" << node;
+			}
+			ofs << std::endl;
+
+			int i_fp = 0;
+			for (const auto& p : result_)
+			{
+				ofs << "#" << i_fp << "\t" << ((float)p.second) / n_trajectories << "\t" << to_string(p.first, nodes);
+				for (int i = 0; i < nodes.size(); i++)
+				{
+					ofs << "\t" << p.first.is_set(i);
+				}
+				ofs << std::endl;
+				i_fp++;
+			}
+		}
 	}
 }

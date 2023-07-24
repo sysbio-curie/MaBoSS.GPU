@@ -21,4 +21,5 @@ public:
 	void finalize();
 
 	void visualize(int n_trajectories, const std::vector<std::string>& nodes);
+	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, std::string prefix);
 };

@@ -22,3 +22,9 @@ void stats_composite::visualize(int n_trajectories, const std::vector<std::strin
 	for (auto&& stat : composed_stats_)
 		stat->visualize(n_trajectories, nodes);
 }
+
+void stats_composite::write_csv(int n_trajectories, const std::vector<std::string>& nodes, std::string prefix)
+{
+	for (auto&& stat : composed_stats_)
+		stat->write_csv(n_trajectories, nodes, prefix);
+}
