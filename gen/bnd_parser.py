@@ -187,4 +187,4 @@ def p_error(p):
     print(f"Syntax error in input! {p}")
 
 # Build the parser
-bnd_parser = yacc.yacc()
+bnd_parser = yacc.yacc(write_tables=False, debug=False)
