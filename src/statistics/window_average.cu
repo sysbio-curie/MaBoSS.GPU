@@ -8,6 +8,7 @@
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 #include <thrust/zip_function.h>
+#include <fstream>
 
 #include "../diagnostics.h"
 #include "../utils.h"
@@ -363,7 +364,56 @@ void window_average_stats::visualize(int n_trajectories, const std::vector<std::
 	}
 }
 
-void window_average_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) 
+void window_average_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes,
+									 const std::string prefix)
 {
-	
+	std::ofstream ofs;
+
+	ofs.open(prefix + "_probtraj.csv");
+	if (ofs)
+	{
+		// Computing max states for header
+		size_t max_states = 0;
+		for (size_t i = 0; i < result_.size(); ++i)
+		{
+			max_states = std::max(max_states, result_[i].size());
+		}
+
+		// Writing header
+		ofs << "Time\tTH\tErrorTH\tH\tHD=0";
+		for (size_t i = 0; i < max_states; i++)
+		{
+			ofs << "\tState\tProba\tErrorProba";
+		}
+		ofs << std::endl;
+
+		// Writing trajectories
+		for (size_t i = 0; i < result_.size(); ++i)
+		{
+			auto w = result_[i];
+
+			float entropy = 0.f;
+			float wnd_tr_entropy = 0.f;
+			for (const auto& p : w)
+			{
+				auto prob = p.second.first / (n_trajectories * window_size_);
+				auto tr_ent = p.second.second / (n_trajectories * window_size_);
+
+				entropy += -std::log2(prob) * prob;
+				wnd_tr_entropy += tr_ent;
+			}
+			ofs << i * window_size_ << "\t";
+			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f;
+
+			for (const auto& p : w)
+			{
+				auto prob = p.second.first / (n_trajectories * window_size_);
+				auto tr_entropy = p.second.second / (n_trajectories * window_size_);
+				auto state = p.first;
+
+				ofs << "\t" << to_string(state, nodes) << "\t" << prob << "\t" << 0.f;
+			}
+			ofs << std::endl;
+		}
+	}
 }
