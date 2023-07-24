@@ -36,7 +36,7 @@ __global__ void initialize_random(int trajectories_count, unsigned long long see
 
 __global__ void initialize_initial_state(int trajectories_count, state_t* __restrict__ states,
 										 float* __restrict__ times, curandState* __restrict__ rands,
-										 const float* initial_probas)
+										 const float* __restrict__ initial_probas)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
