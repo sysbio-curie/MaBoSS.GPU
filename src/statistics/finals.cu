@@ -113,7 +113,7 @@ void finals_stats::visualize(int n_trajectories, const std::vector<std::string>&
 	}
 }
 
-void finals_stats::writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+void finals_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
 {
 	if (target_ == target_t::FIXED)
 	{

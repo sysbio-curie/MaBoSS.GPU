@@ -189,7 +189,7 @@ int main(int argc, char** argv)
 	// visualize
 	if (output_prefix.size() > 0)
 	{
-		stats_runner.writeCSV(config->sample_count, node_names, output_prefix);
+		stats_runner.write_csv(config->sample_count, node_names, output_prefix);
 	}
 	else
 	{

@@ -272,7 +272,7 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 }
 
 
-void window_average_small_stats::writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+void window_average_small_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
 {
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 	std::ofstream ofs;

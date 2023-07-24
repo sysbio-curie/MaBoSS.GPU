@@ -363,7 +363,7 @@ void window_average_stats::visualize(int n_trajectories, const std::vector<std::
 	}
 }
 
-void window_average_stats::writeCSV(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) 
+void window_average_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) 
 {
 	
 }
