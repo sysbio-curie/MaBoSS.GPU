@@ -21,6 +21,7 @@ def p_declaration(p):
     declaration : attr_declaration
                 | var_declaration
                 | const_declaration
+                | istate_declaration
     '''
     p[0] = p[1]
 
@@ -41,6 +42,12 @@ def p_const_declaration(p):
     const_declaration : IDENTIFIER '=' expression ';'
     '''
     p[0] = ConstantDeclaration(p[1], p[3])
+
+def p_istate_declaration(p):
+    '''
+    istate_declaration : '[' IDENTIFIER ']' '.' IDENTIFIER '=' expression '[' NUMBER ']' ',' expression '[' NUMBER ']' ';'
+    '''
+    p[0] = IstateDeclaration(p[2], IstateProbability(p[7], p[9]), IstateProbability(p[12], p[14]))
 
 def p_term_number(p):
     '''

@@ -4,8 +4,8 @@
 
 #include "types.h"
 
-void run_initialize_initial_state(int trajectories_count, state_t fixed_part, state_t free_mask, state_t* states,
-								  float* times, curandState* rands);
+void run_initialize_initial_state(int trajectories_count, state_t* states, float* times, curandState* rands,
+								  const float* initial_probas);
 
 void run_initialize_random(int trajectories_count, unsigned long long seed, curandState* rands);
 

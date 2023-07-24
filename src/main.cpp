@@ -16,8 +16,8 @@ struct config_t
 {
 	state_t internals_mask;
 	int internals_count;
-	state_t fixed_part, free_mask;
 	std::vector<float> variable_values;
+	std::vector<float> initial_values;
 	float max_time;
 	float time_tick;
 	seed_t seed;
@@ -60,34 +60,24 @@ std::optional<config_t> build_config(const std::string& file)
 		}
 	}
 
-	// free, fixed
+	// initial values
 	{
-		std::map<std::string, bool> initial_states;
+		std::map<std::string, float> initial_states;
 		data["initial_states"].get_to(initial_states);
 
+		config.initial_values.resize(node_names.size(), 0.5f);
 		for (const auto& initial_state : initial_states)
 		{
 			auto it = std::find(node_names.begin(), node_names.end(), initial_state.first);
 
 			if (it == node_names.end())
 			{
-				std::cout << "Nonexisting node in initial_states part of config file" << std::endl;
+				std::cout << "Nonexisting node in initial state part of config file" << std::endl;
 				return std::nullopt;
 			}
 
-			if (initial_state.second)
-			{
-				int bit = (int)std::distance(node_names.begin(), it);
-				config.fixed_part.set(bit);
-			}
-		}
-
-		for (int i = 0; i < node_names.size(); i++)
-		{
-			auto it = initial_states.find(node_names[i]);
-
-			if (it == initial_states.end())
-				config.free_mask |= state_t(i);
+			int index = (int)std::distance(node_names.begin(), it);
+			config.initial_values[index] = initial_state.second;
 		}
 	}
 
@@ -146,8 +136,8 @@ int main(int argc, char** argv)
 	if (!config)
 		return 1;
 
-	simulation_runner r(config->sample_count, config->seed, config->fixed_part, config->free_mask, config->max_time,
-						config->time_tick, config->discrete_time, config->internals_mask, config->variable_values);
+	simulation_runner r(config->sample_count, config->seed, config->max_time, config->time_tick, config->discrete_time,
+						config->internals_mask, config->variable_values, config->initial_values);
 
 	stats_composite stats_runner;
 
