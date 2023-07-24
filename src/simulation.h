@@ -5,7 +5,7 @@
 #include "types.h"
 
 void run_initialize_initial_state(int trajectories_count, state_t* states, float* times, curandState* rands,
-								  float* initial_probas);
+								  const float* initial_probas);
 
 void run_initialize_random(int trajectories_count, unsigned long long seed, curandState* rands);
 
