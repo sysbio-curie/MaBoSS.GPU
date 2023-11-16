@@ -18,6 +18,14 @@ SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
 
 ### Target MaBoSSGCore ###
 
+include(FetchContent)
+FetchContent_Declare(
+  jitify
+  GIT_REPOSITORY https://github.com/NVIDIA/jitify.git
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(jitify)
+
 set(PARSER_GENERATED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/generated)
 
 add_custom_target(make-gen-dir ALL
@@ -34,14 +42,13 @@ FLEX_TARGET(MyParser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
 file(GLOB_RECURSE src_files "src/*")
 list(FILTER src_files EXCLUDE REGEX ".*main\\..*")
 add_library(MaBoSSGCore OBJECT ${src_files} ${BISON_MyParser_OUTPUTS} ${FLEX_MyParser_OUTPUTS})
-target_include_directories(MaBoSSGCore PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_include_directories(MaBoSSGCore PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${jitify_SOURCE_DIR})
 
 ### Target MaBoSSGCore ###
 
 
 ### Target unit_MaBoSSG ###
 
-include(FetchContent)
 FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip

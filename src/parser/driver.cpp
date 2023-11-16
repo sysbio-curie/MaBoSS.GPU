@@ -36,6 +36,12 @@ void driver::register_node(std::string name, node_attr_list_t node)
 	if (std::find_if(nodes.begin(), nodes.end(), [&](auto&& node) { return node.name == name; }) != nodes.end())
 		throw std::runtime_error("Node " + name + " already exists");
 
+	if (std::find_if(node.begin(), node.end(), [&](auto&& attr) { return attr.first == "rate_up"; }) == node.end())
+		throw std::runtime_error("Node " + name + " does not have rate_up attribute");
+
+	if (std::find_if(node.begin(), node.end(), [&](auto&& attr) { return attr.first == "rate_down"; }) == node.end())
+		throw std::runtime_error("Node " + name + " does not have rate_down attribute");
+
 	nodes.emplace_back(std::move(name), std::move(node));
 }
 
