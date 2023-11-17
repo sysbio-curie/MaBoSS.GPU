@@ -63,7 +63,7 @@ exppart		            [eE](\-|\+)?[0-9]+
 "?"                     return yy::parser::make_TERNARY(loc);
 ":"                     return yy::parser::make_COLON(loc);
 ("&&"|"&"|(?i:AND))     return yy::parser::make_AND(loc);
-("&&"|"&"|(?i:OR))      return yy::parser::make_OR(loc);
+("||"|"|"|(?i:OR))      return yy::parser::make_OR(loc);
 ("^"|(?i:XOR))          return yy::parser::make_XOR(loc);
 ("!"|(?i:NOT))          return yy::parser::make_NOT(loc);
 "=="                    return yy::parser::make_EQ(loc);
@@ -108,7 +108,7 @@ yy::parser::symbol_type make_FLOAT(const std::string &s, const yy::parser::locat
 {
     errno = 0;
     double n = strtod(s.c_str(), nullptr);
-    if (!(FLT_MIN <= n && n <= FLT_MAX && errno != ERANGE))
+    if (errno == ERANGE)
         throw yy::parser::syntax_error(loc, "float is out of range: " + s);
     return yy::parser::make_NUMBER((float)n, loc);
 }

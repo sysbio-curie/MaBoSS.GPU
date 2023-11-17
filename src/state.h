@@ -132,6 +132,8 @@ struct state_t_template
 	}
 };
 
+using unit_state_t = state_t_template<32>;
+
 template <int bits>
 std::string to_string(const state_t_template<bits>& s, const std::vector<std::string>& names)
 {

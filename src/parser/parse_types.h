@@ -15,8 +15,9 @@ struct node_t
 {
 	std::string name;
 	node_attr_list_t attrs;
+	float istate;
 
-	node_t(std::string name, node_attr_list_t attrs) : name(std::move(name)), attrs(std::move(attrs)) {}
+	node_t(std::string name, node_attr_list_t attrs) : name(std::move(name)), attrs(std::move(attrs)), istate(0.5) {}
 
 	const node_attr_t& get_attr(std::string_view name) const
 	{

@@ -3,16 +3,29 @@
 #include <algorithm>
 #include <sstream>
 
+#include "utils.h"
 
-generator::generator(std::string bnd_file, std::string cfg_file)
-{
-	drv_.parse(std::move(bnd_file), std::move(cfg_file));
-}
+generator::generator(driver& drv) : drv_(drv) {}
 
-void generator::generate_code() const
+std::string generator::generate_code() const
 {
 	std::ostringstream ss;
-	ss << "simulation_program" << std::endl;
+
+	ss << "using uint8_t = unsigned char;" << std::endl;
+	ss << "using uint32_t = unsigned int;" << std::endl << std::endl;
+
+	ss << "constexpr int state_size = " << drv_.nodes.size() << ";" << std::endl;
+	ss << "constexpr int state_words = " << DIV_UP(drv_.nodes.size(), 32) << ";" << std::endl;
+	ss << "constexpr int word_size = " << 32 << ";" << std::endl;
+	ss << "constexpr bool discrete_time = " << (drv_.constants["discrete_time"] != 0) << ";" << std::endl;
+	ss << "constexpr float max_time = " << (drv_.constants["max_time"] != 0) << ";" << std::endl;
+	ss << "constexpr bool time_tick = " << (drv_.constants["time_tick"] != 0) << ";" << std::endl;
+	ss << "constexpr unsigned long long seed = " << (drv_.constants["seed_pseudorandom"] != 0) << ";" << std::endl << std::endl;
+
+	const char* state_cuh =
+#include "jit_kernels/include/state.cuh"
+		;
+	ss << state_cuh << std::endl;
 
 	generate_node_transitions(ss);
 	ss << std::endl;
@@ -23,15 +36,45 @@ void generator::generate_code() const
 	generate_transition_entropy_function(ss);
 	ss << std::endl;
 
-	static jitify::JitCache kernel_cache;
-	jitify::Program program = kernel_cache.program(ss.str());
+	generate_initial_probabilities(ss);
+	ss << std::endl;
+
+	const char* traj_status_cu =
+#include "jit_kernels/include/trajectory_status.h"
+		;
+	ss << traj_status_cu << std::endl;
+
+	const char* simulation_cu =
+#include "jit_kernels/include/simulation.cu"
+		;
+	ss << simulation_cu << std::endl;
+
+	std::cerr << ss.str() << std::endl;
+
+	return ss.str();
+}
+
+void generator::generate_initial_probabilities(std::ostringstream& os) const
+{
+	os <<
+		R"(
+__device__ constexpr get_initial_prob(int node)
+{
+	constexpr float initial_probs[] =
+	{
+)";
+	for (auto&& node : drv_.nodes)
+	{
+		os << node.istate << ", ";
+	}
+	os << "};" << std::endl << "}" << std::endl;
 }
 
 void generator::generate_node_transitions(std::ostringstream& os) const
 {
 	for (auto&& node : drv_.nodes)
 	{
-		os << "__device__ float" << node.name << "_rate(const state_t& state) " << std::endl;
+		os << "__device__ float " << node.name << "_rate(const state_word_t* __restrict__ state) " << std::endl;
 		os << "{" << std::endl;
 
 		os << "    return ";
@@ -40,16 +83,17 @@ void generator::generate_node_transitions(std::ostringstream& os) const
 		os << "          (";
 		node.get_attr("rate_up").second->generate_code(drv_, node.name, os);
 		os << ")" << std::endl;
-		os << "        : (" << std::endl;
+		os << "        : (";
 		node.get_attr("rate_down").second->generate_code(drv_, node.name, os);
 		os << ");" << std::endl;
-		os << "}" << std::endl;
+		os << "}" << std::endl << std::endl;
 	}
 }
 
 void generator::generate_aggregate_function(std::ostringstream& os) const
 {
-	os << "__device__ float compute_transition_rates(float* __restrict__ transition_rates, const state_t& state)"
+	os << "__device__ float compute_transition_rates(float* __restrict__ transition_rates, const state_word_t* "
+		  "__restrict__ state)"
 	   << std::endl;
 	os << "{" << std::endl;
 	os << "    float sum = 0;" << std::endl;
@@ -64,16 +108,17 @@ void generator::generate_aggregate_function(std::ostringstream& os) const
 		os << "    sum += tmp;" << std::endl;
 		os << std::endl;
 	}
+	os << "    return sum;" << std::endl;
 	os << "}" << std::endl;
 }
 
 void generator::generate_transition_entropy_function(std::ostringstream& os) const
 {
-	os << "__device__ float compute_transition_entropy(const float* __restrict__ transition_rates, int)" << std::endl;
+	os << "__device__ float compute_transition_entropy(const float* __restrict__ transition_rates)" << std::endl;
 	os << "{" << std::endl;
 	os << "    float entropy = 0.f;" << std::endl;
 	os << "    float non_internal_total_rate = 0.f;" << std::endl;
-	os << "    float tmp_prob;" << std::endl;
+	os << "    float tmp_prob;" << std::endl << std::endl;
 
 	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
 	{
@@ -84,7 +129,7 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 		}
 	}
 
-	os << "    if (non_internal_total_rate == 0.f) return 0.f;" << std::endl;
+	os << "    if (non_internal_total_rate == 0.f) return 0.f;" << std::endl << std::endl;
 
 	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
 	{

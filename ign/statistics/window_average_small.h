@@ -14,7 +14,7 @@ class window_average_small_stats : public stats
 	float window_size_;
 	float max_time_;
 	bool discrete_time_;
-	state_t internal_mask_;
+	unit_state_t internal_mask_;
 	int noninternal_states_count_;
 
 	size_t max_traj_len_;
@@ -26,16 +26,16 @@ class window_average_small_stats : public stats
 	float get_single_result_prob(int n_trajectories, size_t idx);
 
 public:
-	window_average_small_stats(float window_size, float max_time, bool discrete_time, state_t internal_mask,
+	window_average_small_stats(float window_size, float max_time, bool discrete_time, unit_state_t internal_mask,
 							   size_t non_internals, size_t max_traj_len, size_t max_n_trajectories);
 
 	~window_average_small_stats();
 
-	void process_batch_internal(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+	void process_batch_internal(thrust::device_ptr<unit_state_t> traj_states, thrust::device_ptr<float> traj_times,
 								thrust::device_ptr<float> traj_tr_entropies, int n_trajectories_batch);
 
-	void process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
-					   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<state_t> last_states,
+	void process_batch(thrust::device_ptr<unit_state_t> traj_states, thrust::device_ptr<float> traj_times,
+					   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<unit_state_t> last_states,
 					   thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories) override;
 
 	void finalize() override;

@@ -27,22 +27,54 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(jitify)
 
 set(PARSER_GENERATED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/generated)
+set(JIT_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/include)
 
-add_custom_target(make-gen-dir ALL
+add_custom_target(make-parser-gen-dir ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${PARSER_GENERATED_PATH})
+    
+add_custom_target(make-jit-gen-dir ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${JIT_INCLUDE_PATH})
 
 find_package(BISON)
-BISON_TARGET(MyParser src/parser/parser.yy ${PARSER_GENERATED_PATH}/parser.cpp
+BISON_TARGET(maboss_parser src/parser/parser.yy ${PARSER_GENERATED_PATH}/parser.cpp
              DEFINES_FILE ${PARSER_GENERATED_PATH}/parser.h)
 
 find_package(FLEX)
-FLEX_TARGET(MyParser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
-             DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
+FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
+            DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
+
+set(JIT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h ${CMAKE_CURRENT_SOURCE_DIR}/src/state.cuh)
+
+foreach(path ${JIT_FILES})
+    get_filename_component(name ${path} NAME)
+    add_custom_command(
+        OUTPUT ${JIT_INCLUDE_PATH}/${name}
+        COMMAND ${CMAKE_COMMAND} -Dinput_file=${path} -Doutput_file=${JIT_INCLUDE_PATH}/${name} -P ${CMAKE_CURRENT_SOURCE_DIR}/stringify.cmake
+        MAIN_DEPENDENCY ${path}
+    )
+    list(APPEND JIT_INCLUDE_FILES ${JIT_INCLUDE_PATH}/${name})
+endforeach()
+add_custom_target(jit_includes DEPENDS ${JIT_INCLUDE_FILES})
+
+# add_custom_command(
+#     OUTPUT simulation.fatbin
+#     COMMAND ${CMAKE_CUDA_COMPILER} -arch lto_${CUDA_ARCH_LIST} -rdc=true -fatbin
+#         -o ${CMAKE_CURRENT_BINARY_DIR}/simulation.fatbin 
+#         ${JIT_SOURCE_KERNELS_PATH}/simulation.cu
+#     MAIN_DEPENDENCY ${JIT_SOURCE_KERNELS_PATH}/simulation.cu
+# )
+# add_custom_target(fatbins DEPENDS simulation.fatbin)
+
+add_compile_definitions(CUDA_INC_DIR="${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+add_compile_definitions(CUDA_CC="${CUDA_ARCH_LIST}")
 
 file(GLOB_RECURSE src_files "src/*")
 list(FILTER src_files EXCLUDE REGEX ".*main\\..*")
+list(FILTER src_files EXCLUDE REGEX ".*jit_kernels.*")
 add_library(MaBoSSGCore OBJECT ${src_files} ${BISON_MyParser_OUTPUTS} ${FLEX_MyParser_OUTPUTS})
 target_include_directories(MaBoSSGCore PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${jitify_SOURCE_DIR})
+target_link_libraries(MaBoSSGCore PUBLIC cuda cudart nvrtc )
+add_dependencies(MaBoSSGCore jit_includes)
 
 ### Target MaBoSSGCore ###
 

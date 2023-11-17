@@ -2,9 +2,9 @@
 
 void stats_composite::add(stats_ptr&& stat) { composed_stats_.emplace_back(std::move(stat)); }
 
-void stats_composite::process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+void stats_composite::process_batch(thrust::device_ptr<unit_state_t> traj_states, thrust::device_ptr<float> traj_times,
 									thrust::device_ptr<float> traj_tr_entropies,
-									thrust::device_ptr<state_t> last_states,
+									thrust::device_ptr<unit_state_t> last_states,
 									thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
 	for (auto&& stat : composed_stats_)

@@ -46,9 +46,11 @@ public:
 	void register_constant(std::string name, expr_ptr expr);
 	void register_node(std::string name, node_attr_list_t expr);
 	void register_node_attribute(std::string node, std::string name, expr_ptr expr);
+	void register_node_istate(std::string node, expr_ptr expr_l, expr_ptr expr_r, int value_l);
 
-	// Run the parser on file F.  Return 0 on success.
 	int parse(std::string bnd_file, std::string cfg_file);
 
+	// Run the parser on the file.
+	// Return 0 on success.
 	int parse_one(std::string file);
 };

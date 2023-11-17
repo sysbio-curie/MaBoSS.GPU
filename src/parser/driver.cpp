@@ -2,7 +2,14 @@
 
 #include <algorithm>
 
-driver::driver() : trace_parsing(false), trace_scanning(false), start(start_type::none) {}
+driver::driver() : trace_parsing(false), trace_scanning(false), start(start_type::none)
+{
+	constants["discrete_time"] = 0;
+	constants["sample_count"] = 1'000'000;
+	constants["max_time"] = 10;
+	constants["time_tick"] = 0.1;
+	constants["seed_pseudorandom"] = 0;
+}
 
 int driver::parse(std::string bnd_file, std::string cfg_file)
 {
@@ -31,25 +38,54 @@ void driver::register_variable(std::string name, expr_ptr expr) { variables[std:
 
 void driver::register_constant(std::string name, expr_ptr expr) { constants[std::move(name)] = expr->evaluate(*this); }
 
-void driver::register_node(std::string name, node_attr_list_t node)
+void driver::register_node(std::string name, node_attr_list_t node_attrs)
 {
-	if (std::find_if(nodes.begin(), nodes.end(), [&](auto&& node) { return node.name == name; }) != nodes.end())
+	node_t node(std::move(name), std::move(node_attrs));
+
+	if (std::find_if(nodes.begin(), nodes.end(), [&](auto&& n) { return n.name == node.name; }) != nodes.end())
 		throw std::runtime_error("Node " + name + " already exists");
 
-	if (std::find_if(node.begin(), node.end(), [&](auto&& attr) { return attr.first == "rate_up"; }) == node.end())
+	if (!node.has_attr("rate_up"))
 		throw std::runtime_error("Node " + name + " does not have rate_up attribute");
 
-	if (std::find_if(node.begin(), node.end(), [&](auto&& attr) { return attr.first == "rate_down"; }) == node.end())
+	if (!node.has_attr("rate_down"))
 		throw std::runtime_error("Node " + name + " does not have rate_down attribute");
 
-	nodes.emplace_back(std::move(name), std::move(node));
+	nodes.emplace_back(std::move(node));
 }
 
-void driver::register_node_attribute(std::string node, std::string name, expr_ptr expr)
+void driver::register_node_attribute(std::string node_name, std::string attr_name, expr_ptr expr)
 {
-	if (auto it = std::find_if(nodes.begin(), nodes.end(), [&](auto&& node) { return node.name == name; });
+	if (auto it = std::find_if(nodes.begin(), nodes.end(), [&](auto&& node) { return node.name == node_name; });
 		it != nodes.end())
-		it->attrs.emplace_back(std::move(name), std::move(expr));
+	{
+		if (attr_name == "istate")
+			it->istate = expr->evaluate(*this);
+		else
+			it->attrs.emplace_back(std::move(attr_name), std::move(expr));
+	}
 	else
-		throw std::runtime_error("Unknown node " + node);
+		throw std::runtime_error("Unknown node " + node_name);
+}
+
+void driver::register_node_istate(std::string node_name, expr_ptr expr_l, expr_ptr expr_r, int value_l)
+{
+	if (auto it = std::find_if(nodes.begin(), nodes.end(), [&](auto&& node) { return node.name == node_name; });
+		it != nodes.end())
+	{
+		auto l_prob = expr_l->evaluate(*this);
+		auto r_prob = expr_r->evaluate(*this);
+		float activate_prob;
+		if (value_l == 1)
+		{
+			activate_prob = l_prob / (l_prob + r_prob);
+		}
+		else
+		{
+			activate_prob = r_prob / (l_prob + r_prob);
+		}
+		it->istate = activate_prob;
+	}
+	else
+		throw std::runtime_error("Unknown node " + node_name);
 }

@@ -100,13 +100,18 @@ const_declaration:
   IDENTIFIER "=" exp ";"                    { drv.register_constant(std::move($1), std::move($3)); }
 
 istate_declaration: 
-  "[" IDENTIFIER "]" "." IDENTIFIER "=" exp "[" NUMBER "]" "," exp "[" NUMBER "]" ";"
+  "[" IDENTIFIER "]" "." IDENTIFIER "=" exp "[" NUMBER "]" "," exp "[" NUMBER "]" ";" {
+                                                if ($5 != "istate") throw yy::parser::syntax_error(@5, "expected 'istate' keyword");
+                                                if (!(($9 == 0 && $14 == 1) || ($9 == 1 && $14 == 0))) 
+                                                  throw yy::parser::syntax_error(@9, "numbers in [] must be 0 and 1");
+                                                drv.register_node_istate(std::move($2), std::move($7), std::move($12), $9);
+                                            }
 
 
 bnd_declaration:
   IDENTIFIER IDENTIFIER "{" node_body "}"   {
                                                 std::for_each($1.begin(), $1.end(), ::tolower);
-                                                if ($1 != "node") throw std::runtime_error("expected 'node' keyword at line " + @1.begin.line);
+                                                if ($1 != "node") throw yy::parser::syntax_error(@1, "expected 'node' keyword");
                                                 drv.register_node(std::move($2), std::move($4)); 
                                             }
 

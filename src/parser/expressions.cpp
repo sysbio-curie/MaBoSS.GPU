@@ -198,7 +198,10 @@ void identifier_expression::generate_code(const driver& drv, const std::string&,
 	{
 		throw std::runtime_error("unknown node name: " + name);
 	}
-	os << "state.is_set(" << it - drv.nodes.begin() << ")";
+	int i = it - drv.nodes.begin();
+	int word = i / 32;
+	int bit = i % 32;
+	os << "((state[" << word << "] & " << (1 << bit) << ") != 0)";
 }
 
 variable_expression::variable_expression(std::string name) : name(std::move(name)) {}
@@ -219,13 +222,10 @@ float alias_expression::evaluate(const driver&) const
 
 void alias_expression::generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const
 {
-	auto it = std::find_if(drv.nodes.begin(), drv.nodes.end(), [this](auto&& node) { return node.name == name; });
+	auto it = std::find_if(drv.nodes.begin(), drv.nodes.end(), [&](auto&& node) { return node.name == current_node; });
 	assert(it != drv.nodes.end());
 
-	auto attr_it = std::find_if(it->attrs.begin(), it->attrs.end(), [this](auto&& attr) { return attr.first == name; });
-	if (attr_it == it->attrs.end())
-	{
-		throw std::runtime_error("unknown alias name: " + name + " in node " + it->name);
-	}
-	attr_it->second->generate_code(drv, current_node, os);
+	auto&& attr = it->get_attr(name.substr(1));
+
+	attr.second->generate_code(drv, current_node, os);
 }
