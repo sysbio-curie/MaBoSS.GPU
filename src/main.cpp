@@ -2,6 +2,7 @@
 #include <iostream>
 #include <map>
 #include <optional>
+#include "state.cuh"
 
 #include <nlohmann/json.hpp>
 
@@ -159,8 +160,8 @@ int main(int argc, char** argv)
 	// if (!config)
 	// 	return 1;
 
-	simulation_runner r(drv.constants["sample_count"], drv.nodes.size() / 32);
-	r.run_simulation(compiler.initialize_random, compiler.initialize_initial_state);
+	simulation_runner r(drv.constants["sample_count"], DIV_UP(drv.nodes.size(), sizeof(state_word_t) * 8));
+	r.run_simulation(compiler.initialize_random, compiler.initialize_initial_state, compiler.simulate);
 
 	// stats_composite stats_runner;
 

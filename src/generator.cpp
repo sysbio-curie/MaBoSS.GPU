@@ -20,7 +20,13 @@ std::string generator::generate_code() const
 	ss << "constexpr bool discrete_time = " << (drv_.constants["discrete_time"] != 0) << ";" << std::endl;
 	ss << "constexpr float max_time = " << (drv_.constants["max_time"] != 0) << ";" << std::endl;
 	ss << "constexpr bool time_tick = " << (drv_.constants["time_tick"] != 0) << ";" << std::endl;
-	ss << "constexpr unsigned long long seed = " << (drv_.constants["seed_pseudorandom"] != 0) << ";" << std::endl << std::endl;
+	ss << "constexpr unsigned long long seed = " << (drv_.constants["seed_pseudorandom"] != 0) << ";" << std::endl;
+	ss <<"constexpr float initial_probs[] = { ";
+	for (auto&& node : drv_.nodes)
+	{
+		ss << node.istate << ", ";
+	}
+	ss << "};" << std::endl << std::endl;
 
 	const char* state_cuh =
 #include "jit_kernels/include/state.cuh"
@@ -34,9 +40,6 @@ std::string generator::generate_code() const
 	ss << std::endl;
 
 	generate_transition_entropy_function(ss);
-	ss << std::endl;
-
-	generate_initial_probabilities(ss);
 	ss << std::endl;
 
 	const char* traj_status_cu =
@@ -54,22 +57,6 @@ std::string generator::generate_code() const
 	return ss.str();
 }
 
-void generator::generate_initial_probabilities(std::ostringstream& os) const
-{
-	os <<
-		R"(
-__device__ constexpr get_initial_prob(int node)
-{
-	constexpr float initial_probs[] =
-	{
-)";
-	for (auto&& node : drv_.nodes)
-	{
-		os << node.istate << ", ";
-	}
-	os << "};" << std::endl << "}" << std::endl;
-}
-
 void generator::generate_node_transitions(std::ostringstream& os) const
 {
 	for (auto&& node : drv_.nodes)
@@ -81,10 +68,10 @@ void generator::generate_node_transitions(std::ostringstream& os) const
 		identifier_expression(node.name).generate_code(drv_, node.name, os);
 		os << " ?" << std::endl;
 		os << "          (";
-		node.get_attr("rate_up").second->generate_code(drv_, node.name, os);
+		node.get_attr("rate_down").second->generate_code(drv_, node.name, os);
 		os << ")" << std::endl;
 		os << "        : (";
-		node.get_attr("rate_down").second->generate_code(drv_, node.name, os);
+		node.get_attr("rate_up").second->generate_code(drv_, node.name, os);
 		os << ");" << std::endl;
 		os << "}" << std::endl << std::endl;
 	}

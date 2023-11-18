@@ -16,4 +16,4 @@ void nvjitlink_check(nvJitLinkResult e, const char* file, int line);
 #define NVRTC_CHECK(func) nvrtc_check(func, __FILE__, __LINE__)
 #define NVJITLINK_CHECK(func) nvjitlink_check(func, __FILE__, __LINE__)
 
-#define DIV_UP(x, y) (x + y - 1) / y
+#define DIV_UP(x, y) ((x) + (y) - 1) / (y)

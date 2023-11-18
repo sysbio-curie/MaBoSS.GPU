@@ -37,7 +37,7 @@ __global__ void initialize_initial_state(int trajectories_count, state_word_t* _
 		// randomly set free vars
 		for (int i = 0; i < state_size; i++)
 		{
-			if (curand_uniform(rands + id) <= get_initial_prob(i))
+			if (curand_uniform(rands + id) <= initial_probs[i])
 				s[i / word_size] |= 1 << (i % word_size);
 			else
 				s[i / word_size] &= ~(1 << (i % word_size));
