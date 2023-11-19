@@ -21,5 +21,5 @@ public:
 
 	void visualize(int n_trajectories, const std::vector<std::string>& nodes) override;
 
-	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) override;
+	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string& prefix) override;
 };

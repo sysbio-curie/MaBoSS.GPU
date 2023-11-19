@@ -33,7 +33,7 @@ std::string generator::generate_code() const
 	ss << "};" << std::endl << std::endl;
 
 	const char* state_cuh =
-#include "jit_kernels/include/state.cuh"
+#include "jit_kernels/include/state_word.h"
 		;
 	ss << state_cuh << std::endl;
 
@@ -124,7 +124,7 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 	os << "    float non_internal_total_rate = 0.f;" << std::endl;
 	os << "    float tmp_prob;" << std::endl << std::endl;
 
-	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
+	for (size_t i = 0; i < drv_.nodes.size(); i++)
 	{
 		if (!drv_.nodes[i].is_internal(drv_))
 		{
@@ -134,7 +134,7 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 
 	os << "    if (non_internal_total_rate == 0.f) return 0.f;" << std::endl << std::endl;
 
-	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
+	for (size_t i = 0; i < drv_.nodes.size(); i++)
 	{
 		if (!drv_.nodes[i].is_internal(drv_))
 		{
@@ -156,7 +156,7 @@ void generator::generate_non_internal_index(std::ostringstream& os) const
 	int non_internals_count =
 		std::count_if(drv_.nodes.begin(), drv_.nodes.end(), [&](const auto& node) { return !node.is_internal(drv_); });
 	int non_internals = 0;
-	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
+	for (size_t i = 0; i < drv_.nodes.size(); i++)
 	{
 		if (!drv_.nodes[i].is_internal(drv_))
 		{

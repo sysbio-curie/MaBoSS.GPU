@@ -1,11 +1,12 @@
-﻿#include <fstream>
+﻿#include "final_states.h"
+
+#include <fstream>
 
 #include <thrust/copy.h>
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
 
 #include "../diagnostics.h"
-#include "final_states.h"
 #include "window_average_small.h"
 
 final_states_stats::final_states_stats(state_t noninternals_mask, int noninternals, kernel_wrapper& final_states)
@@ -63,5 +64,4 @@ void final_states_stats::visualize(int n_trajectories, const std::vector<std::st
 	}
 }
 
-void final_states_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
-{}
+void final_states_stats::write_csv(int, const std::vector<std::string>&, const std::string&) {}

@@ -17,7 +17,7 @@ class final_states_stats : public stats
 	kernel_wrapper& final_states_;
 
 public:
-	final_states_stats(state_t noninternals_mask_,int noninternals, kernel_wrapper& final_states);
+	final_states_stats(state_t noninternals_mask_, int noninternals, kernel_wrapper& final_states);
 	~final_states_stats();
 
 	void process_batch_internal(thrust::device_ptr<state_word_t> last_states,
@@ -30,5 +30,5 @@ public:
 	void finalize() override;
 
 	void visualize(int n_trajectories, const std::vector<std::string>& nodes) override;
-	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) override;
+	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string& prefix) override;
 };

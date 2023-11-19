@@ -18,14 +18,6 @@ SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
 
 ### Target MaBoSSGCore ###
 
-# include(FetchContent)
-# FetchContent_Declare(
-#   jitify
-#   GIT_REPOSITORY https://github.com/NVIDIA/jitify.git
-#   GIT_TAG        master
-# )
-# FetchContent_MakeAvailable(jitify)
-
 set(PARSER_GENERATED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/generated)
 set(JIT_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/include)
 
@@ -45,7 +37,7 @@ FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner
 
 set(JIT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu 
               ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h 
-              ${CMAKE_CURRENT_SOURCE_DIR}/src/state.cuh
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/state_word.h
               ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu
               ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/final_states.cu)
 
@@ -59,15 +51,6 @@ foreach(path ${JIT_FILES})
     list(APPEND JIT_INCLUDE_FILES ${JIT_INCLUDE_PATH}/${name})
 endforeach()
 add_custom_target(jit_includes DEPENDS ${JIT_INCLUDE_FILES})
-
-# add_custom_command(
-#     OUTPUT simulation.fatbin
-#     COMMAND ${CMAKE_CUDA_COMPILER} -arch lto_${CUDA_ARCH_LIST} -rdc=true -fatbin
-#         -o ${CMAKE_CURRENT_BINARY_DIR}/simulation.fatbin 
-#         ${JIT_SOURCE_KERNELS_PATH}/simulation.cu
-#     MAIN_DEPENDENCY ${JIT_SOURCE_KERNELS_PATH}/simulation.cu
-# )
-# add_custom_target(fatbins DEPENDS simulation.fatbin)
 
 add_compile_definitions(CUDA_INC_DIR="${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 add_compile_definitions(CUDA_CC="${CUDA_ARCH_LIST}")
@@ -116,7 +99,7 @@ gtest_discover_tests(unit_MaBoSSG)
 
 ### Target MaBoSSG ###
 
-add_executable(MaBoSSG src/main)
+add_executable(MaBoSSG src/main.cpp)
 target_link_libraries(MaBoSSG MaBoSSGCore)
 
 ### Target MaBoSSG ###

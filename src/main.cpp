@@ -4,7 +4,7 @@
 #include "generator.h"
 #include "kernel_compiler.h"
 #include "simulation_runner.h"
-#include "state.cuh"
+#include "state_word.h"
 #include "statistics/final_states.h"
 #include "statistics/fixed_states.h"
 #include "statistics/stats_composite.h"

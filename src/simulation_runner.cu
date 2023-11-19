@@ -1,3 +1,4 @@
+#include <curand_kernel.h>
 
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
@@ -6,11 +7,9 @@
 #include <thrust/partition.h>
 
 #include "diagnostics.h"
-#include "simulation.h"
 #include "simulation_runner.h"
-#include "state.cuh"
+#include "state_word.h"
 #include "utils.h"
-
 
 template <typename T>
 struct eq_ftor
@@ -22,28 +21,18 @@ struct eq_ftor
 	__device__ bool operator()(T other) { return other == it; }
 };
 
-// derive repeat_iterator from iterator_adaptor
 template <typename Iterator>
-class repeat_iterator
-	: public thrust::iterator_adaptor<repeat_iterator<Iterator>, // the first template parameter is the name of the
-																 // iterator we're creating
-									  Iterator // the second template parameter is the name of the iterator we're
-											   // adapting we can use the default for the additional template parameters
-									  >
+class repeat_iterator : public thrust::iterator_adaptor<repeat_iterator<Iterator>, Iterator>
 {
 public:
-	// shorthand for the name of the iterator_adaptor we're deriving from
 	typedef thrust::iterator_adaptor<repeat_iterator<Iterator>, Iterator> super_t;
 	__host__ __device__ repeat_iterator(const Iterator& x, int n) : super_t(x), begin(x), n(n) {}
-	// befriend thrust::iterator_core_access to allow it access to the private interface below
 	friend class thrust::iterator_core_access;
 
 private:
-	// repeat each element of the adapted range n times
 	unsigned int n;
-	// used to keep track of where we began
 	Iterator begin;
-	// it is private because only thrust::iterator_core_access needs access to it
+
 	__host__ __device__ typename super_t::reference dereference() const
 	{
 		return *(begin + (this->base() - begin) / n);

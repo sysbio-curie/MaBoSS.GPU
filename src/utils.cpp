@@ -28,12 +28,3 @@ void nvrtc_check(nvrtcResult e, const char* file, int line)
 		std::exit(EXIT_FAILURE);
 	}
 }
-
-void nvjitlink_check(nvJitLinkResult e, const char* file, int line)
-{
-	if (e != NVJITLINK_SUCCESS)
-	{
-		std::printf("NVJITLINK API failed at %s:%d with error: %d\n", file, line, e);
-		std::exit(EXIT_FAILURE);
-	}
-}

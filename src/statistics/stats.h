@@ -5,7 +5,7 @@
 
 #include <thrust/device_ptr.h>
 
-#include "../state.cuh"
+#include "../state_word.h"
 #include "../trajectory_status.h"
 
 class stats;
@@ -25,5 +25,5 @@ public:
 	virtual void finalize() {}
 
 	virtual void visualize(int n_trajectories, const std::vector<std::string>& nodes) = 0;
-	virtual void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix) = 0;
+	virtual void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string& prefix) = 0;
 };

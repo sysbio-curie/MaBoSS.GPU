@@ -101,7 +101,7 @@ void fixed_states_stats<state_words>::visualize(int n_trajectories, const std::v
 
 template <int state_words>
 void fixed_states_stats<state_words>::write_csv(int n_trajectories, const std::vector<std::string>& nodes,
-												const std::string prefix)
+												const std::string& prefix)
 {
 	std::ofstream ofs;
 
