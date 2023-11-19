@@ -38,7 +38,7 @@ kernel_compiler::~kernel_compiler()
 	CU_CHECK(cuCtxDestroy(cuContext_));
 }
 
-void kernel_compiler::compile_simulation(const std::string& code)
+void kernel_compiler::compile_simulation(const std::string& code, bool discrete_time)
 {
 	// Create an instance of nvrtcProgram with the code string.
 	nvrtcProgram prog;
@@ -52,6 +52,7 @@ void kernel_compiler::compile_simulation(const std::string& code)
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, "initialize_random"));
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, "initialize_initial_state"));
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, "simulate"));
+	NVRTC_CHECK(nvrtcAddNameExpression(prog, discrete_time ? "window_average_small_discrete" : "window_average_small"));
 
 	// specify that LTO IR should be generated for LTO operation
 	const char* opts[] = { "-arch=sm_" CUDA_CC, "-I " CUDA_INC_DIR };
@@ -83,7 +84,7 @@ void kernel_compiler::compile_simulation(const std::string& code)
 	// compiled and before it has been destroyed.
 	NVRTC_CHECK(nvrtcGetLoweredName(prog,
 									"initialize_random", // name expression
-									&name		// lowered name
+									&name				 // lowered name
 									));
 
 	CU_CHECK(cuModuleGetFunction(&initialize_random.kernel, cuModule_, name));
@@ -91,7 +92,7 @@ void kernel_compiler::compile_simulation(const std::string& code)
 	// compiled and before it has been destroyed.
 	NVRTC_CHECK(nvrtcGetLoweredName(prog,
 									"initialize_initial_state", // name expression
-									&name		// lowered name
+									&name						// lowered name
 									));
 
 	CU_CHECK(cuModuleGetFunction(&initialize_initial_state.kernel, cuModule_, name));
@@ -103,7 +104,15 @@ void kernel_compiler::compile_simulation(const std::string& code)
 									));
 
 	CU_CHECK(cuModuleGetFunction(&simulate.kernel, cuModule_, name));
-    
+
+	NVRTC_CHECK(
+		nvrtcGetLoweredName(prog,
+							discrete_time ? "window_average_small_discrete" : "window_average_small", // name expression
+							&name																	  // lowered name
+							));
+
+	CU_CHECK(cuModuleGetFunction(&window_average_small.kernel, cuModule_, name));
+
 	// Destroy the program.
 	// NVRTC_CHECK(nvrtcDestroyProgram(&prog));
 

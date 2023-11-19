@@ -2,117 +2,29 @@
 #include <iostream>
 #include <map>
 #include <optional>
-#include "state.cuh"
 
 #include <nlohmann/json.hpp>
 
-#include "kernel_compiler.h"
 #include "generator.h"
+#include "kernel_compiler.h"
 #include "simulation_runner.h"
+#include "state.cuh"
 // #include "statistics/finals.h"
-// #include "statistics/stats_composite.h"
+#include "statistics/stats_composite.h"
 // #include "statistics/window_average.h"
-// #include "statistics/window_average_small.h"
+#include "statistics/window_average_small.h"
 
-// struct config_t
-// {
-// 	state_t internals_mask;
-// 	int internals_count;
-// 	std::vector<float> variable_values;
-// 	std::vector<float> initial_values;
-// 	float max_time;
-// 	float time_tick;
-// 	seed_t seed;
-// 	bool discrete_time;
-// 	int sample_count;
-// };
+state_t create_noninternals_mask(driver& drv)
+{
+	state_t mask(drv.nodes.size());
+	for (size_t i = 0; i < drv.nodes.size(); ++i)
+	{
+		if (!drv.nodes[i].is_internal(drv))
+			mask.set(i);
+	}
 
-// std::optional<config_t> build_config(const std::string& file)
-// {
-// 	std::ifstream f(file);
-
-// 	if (!f.is_open())
-// 	{
-// 		std::cout << "Config file " << file << " could not be opened" << std::endl;
-// 		return std::nullopt;
-// 	}
-
-// 	nlohmann::json data = nlohmann::json::parse(f);
-
-// 	config_t config;
-
-// 	// internals
-// 	{
-// 		std::vector<std::string> internals_names;
-// 		data["internals"].get_to(internals_names);
-// 		config.internals_count = (int)internals_names.size();
-
-// 		for (const auto& internal_name : internals_names)
-// 		{
-// 			auto it = std::find(node_names.begin(), node_names.end(), internal_name);
-
-// 			if (it == node_names.end())
-// 			{
-// 				std::cout << "Nonexisting node in internals part of config file" << std::endl;
-// 				return std::nullopt;
-// 			}
-
-// 			int index = (int)std::distance(node_names.begin(), it);
-// 			config.internals_mask |= state_t(index);
-// 		}
-// 	}
-
-// 	// initial values
-// 	{
-// 		std::map<std::string, float> initial_states;
-// 		data["initial_states"].get_to(initial_states);
-
-// 		config.initial_values.resize(node_names.size(), 0.5f);
-// 		for (const auto& initial_state : initial_states)
-// 		{
-// 			auto it = std::find(node_names.begin(), node_names.end(), initial_state.first);
-
-// 			if (it == node_names.end())
-// 			{
-// 				std::cout << "Nonexisting node in initial state part of config file" << std::endl;
-// 				return std::nullopt;
-// 			}
-
-// 			int index = (int)std::distance(node_names.begin(), it);
-// 			config.initial_values[index] = initial_state.second;
-// 		}
-// 	}
-
-// 	// variable values
-// 	{
-// 		std::map<std::string, float> variables;
-// 		data["variables"].get_to(variables);
-
-// 		for (const auto& var : variables_order)
-// 		{
-// 			auto it = variables.find(var);
-
-// 			if (it == variables.end())
-// 			{
-// 				std::cout << "Variable value missing in config file" << std::endl;
-// 				return std::nullopt;
-// 			}
-
-// 			config.variable_values.push_back(it->second);
-// 		}
-// 	}
-
-// 	// rest
-// 	data["max_time"].get_to(config.max_time);
-// 	data["time_tick"].get_to(config.time_tick);
-// 	data["seed"].get_to(config.seed);
-// 	int discrete_time;
-// 	data["discrete_time"].get_to(discrete_time);
-// 	config.discrete_time = (bool)discrete_time;
-// 	data["sample_count"].get_to(config.sample_count);
-
-// 	return config;
-// }
+	return mask;
+}
 
 int main(int argc, char** argv)
 {
@@ -138,32 +50,29 @@ int main(int argc, char** argv)
 	if (drv.parse(bnd_path, cfg_path))
 		return 1;
 
+	bool discrete_time = drv.constants["discrete_time"] != 0;
+	float max_time = drv.constants["max_time"];
+	float time_tick = drv.constants["time_tick"];
+	int sample_count = drv.constants["sample_count"];
+	auto noninternals_mask = create_noninternals_mask(drv);
+	int noninternals_count =
+		std::count_if(drv.nodes.begin(), drv.nodes.end(), [&](const auto& node) { return !node.is_internal(drv); });
+
+	std::vector<std::string> node_names;
+	for (auto&& node : drv.nodes)
+		node_names.push_back(node.name);
+
 	generator gen(drv);
 
 	auto s = gen.generate_code();
 
 	kernel_compiler compiler;
 
-	compiler.compile_simulation(s);
+	compiler.compile_simulation(s, discrete_time);
 
-	// std::optional<config_t> config;
-	// try
-	// {
-	// 	config = build_config(config_path);
-	// }
-	// catch (std::exception& e)
-	// {
-	// 	std::cout << "Bad config file: " << e.what() << std::endl;
-	// 	return 1;
-	// }
+	simulation_runner r(sample_count, noninternals_mask.words_n());
 
-	// if (!config)
-	// 	return 1;
-
-	simulation_runner r(drv.constants["sample_count"], DIV_UP(drv.nodes.size(), sizeof(state_word_t) * 8));
-	r.run_simulation(compiler.initialize_random, compiler.initialize_initial_state, compiler.simulate);
-
-	// stats_composite stats_runner;
+	stats_composite stats_runner;
 
 	// // for final states
 	// stats_runner.add(std::make_unique<finals_stats>(target_t::FINAL, config->internals_mask));
@@ -174,9 +83,9 @@ int main(int argc, char** argv)
 	// size_t noninternal_nodes = states_count - config->internals_count;
 	// if (noninternal_nodes <= 20)
 	// {
-	// 	stats_runner.add(std::make_unique<window_average_small_stats>(
-	// 		config->time_tick, config->max_time, config->discrete_time, config->internals_mask, noninternal_nodes,
-	// 		r.trajectory_len_limit, r.trajectory_batch_limit));
+	stats_runner.add(std::make_unique<window_average_small_stats>(
+		time_tick, max_time, discrete_time, noninternals_mask, noninternals_count, r.trajectory_len_limit,
+		r.trajectory_batch_limit, compiler.window_average_small));
 	// }
 	// else
 	// {
@@ -187,10 +96,10 @@ int main(int argc, char** argv)
 	// }
 
 	// // run
-	// r.run_simulation(stats_runner);
+	r.run_simulation(stats_runner, compiler.initialize_random, compiler.initialize_initial_state, compiler.simulate);
 
 	// // finalize
-	// stats_runner.finalize();
+	stats_runner.finalize();
 
 	// // visualize
 	// if (output_prefix.size() > 0)
@@ -199,7 +108,7 @@ int main(int argc, char** argv)
 	// }
 	// else
 	// {
-	// 	stats_runner.visualize(config->sample_count, node_names);
+	stats_runner.visualize(sample_count, node_names);
 	// }
 
 	return 0;

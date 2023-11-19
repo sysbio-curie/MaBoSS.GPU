@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kernel.h"
+#include "statistics/stats_composite.h"
 
 class simulation_runner
 {
@@ -13,6 +14,6 @@ public:
 
 	simulation_runner(int n_trajectories, int state_words);
 
-	void run_simulation(/*stats_composite& stats_runner*/ kernel_wrapper& initialize_random,
+	void run_simulation(stats_composite& stats_runner, kernel_wrapper& initialize_random,
 						kernel_wrapper& initialize_initial_state, kernel_wrapper& simulate);
 };

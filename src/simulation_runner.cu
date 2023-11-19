@@ -28,7 +28,7 @@ simulation_runner::simulation_runner(int n_trajectories, int state_words)
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
 }
 
-void simulation_runner::run_simulation(/*stats_composite& stats_runner*/ kernel_wrapper& initialize_random,
+void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wrapper& initialize_random,
 									   kernel_wrapper& initialize_initial_state, kernel_wrapper& simulate)
 {
 	timer t;
@@ -81,8 +81,8 @@ void simulation_runner::run_simulation(/*stats_composite& stats_runner*/ kernel_
 		t.start();
 
 		// compute statistics over the simulated trajs
-		// stats_runner.process_batch(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
-		// 						   trajectories_in_batch);
+		stats_runner.process_batch(d_traj_states, d_traj_times, d_traj_tr_entropies, d_last_states, d_traj_statuses,
+								   trajectories_in_batch);
 
 		t.stop();
 		stats_time += t.millisecs();
@@ -111,7 +111,7 @@ void simulation_runner::run_simulation(/*stats_composite& stats_runner*/ kernel_
 				if (new_batch_addition)
 				{
 					initialize_initial_state.run(dim3(DIV_UP(new_batch_addition, 256)), dim3(256), new_batch_addition,
-												 d_last_states.get() + trajectories_in_batch,
+												 d_last_states.get() + trajectories_in_batch * state_words_,
 												 d_last_times.get() + trajectories_in_batch,
 												 d_rands.get() + trajectories_in_batch);
 

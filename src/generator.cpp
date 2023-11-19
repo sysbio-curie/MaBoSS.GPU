@@ -17,11 +17,15 @@ std::string generator::generate_code() const
 	ss << "constexpr int state_size = " << drv_.nodes.size() << ";" << std::endl;
 	ss << "constexpr int state_words = " << DIV_UP(drv_.nodes.size(), 32) << ";" << std::endl;
 	ss << "constexpr int word_size = " << 32 << ";" << std::endl;
+	ss << "constexpr int noninternal_states_count = "
+	   << (1 << std::count_if(drv_.nodes.begin(), drv_.nodes.end(),
+							  [&](const auto& node) { return !node.is_internal(drv_); }))
+	   << ";" << std::endl;
 	ss << "constexpr bool discrete_time = " << (drv_.constants["discrete_time"] != 0) << ";" << std::endl;
-	ss << "constexpr float max_time = " << (drv_.constants["max_time"] != 0) << ";" << std::endl;
-	ss << "constexpr bool time_tick = " << (drv_.constants["time_tick"] != 0) << ";" << std::endl;
-	ss << "constexpr unsigned long long seed = " << (drv_.constants["seed_pseudorandom"] != 0) << ";" << std::endl;
-	ss <<"constexpr float initial_probs[] = { ";
+	ss << "constexpr float max_time = " << drv_.constants["max_time"] << ";" << std::endl;
+	ss << "constexpr float time_tick = " << drv_.constants["time_tick"] << ";" << std::endl;
+	ss << "constexpr unsigned long long seed = " << drv_.constants["seed_pseudorandom"] << ";" << std::endl;
+	ss << "constexpr float initial_probs[] = { ";
 	for (auto&& node : drv_.nodes)
 	{
 		ss << node.istate << ", ";
@@ -51,6 +55,14 @@ std::string generator::generate_code() const
 #include "jit_kernels/include/simulation.cu"
 		;
 	ss << simulation_cu << std::endl;
+
+	generate_non_internal_index(ss);
+	ss << std::endl;
+
+	const char* window_average_small_cu =
+#include "jit_kernels/include/window_average_small.cu"
+		;
+	ss << window_average_small_cu << std::endl;
 
 	std::cerr << ss.str() << std::endl;
 
@@ -109,8 +121,7 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 
 	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
 	{
-		if (!(drv_.nodes[i].has_attr("is_internal")
-			  && drv_.nodes[i].get_attr("is_internal").second->evaluate(drv_) != 0))
+		if (!drv_.nodes[i].is_internal(drv_))
 		{
 			os << "    non_internal_total_rate += transition_rates[" << i << "];" << std::endl;
 		}
@@ -120,8 +131,7 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 
 	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
 	{
-		if (!(drv_.nodes[i].has_attr("is_internal")
-			  && drv_.nodes[i].get_attr("is_internal").second->evaluate(drv_) != 0))
+		if (!drv_.nodes[i].is_internal(drv_))
 		{
 			os << "    tmp_prob = transition_rates[" << i << "] / non_internal_total_rate;" << std::endl;
 			os << "    entropy -= (tmp_prob == 0.f) ? 0.f : log2f(tmp_prob) * tmp_prob;" << std::endl;
@@ -130,4 +140,27 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 
 	os << "    return entropy;" << std::endl;
 	os << "}";
+}
+
+void generator::generate_non_internal_index(std::ostringstream& os) const
+{
+	os << "__device__ uint32_t get_non_internal_index(const state_word_t* __restrict__ state)" << std::endl;
+	os << "{" << std::endl;
+	os << "    return" << std::endl;
+	os << "			";
+	int non_internals_count =
+		std::count_if(drv_.nodes.begin(), drv_.nodes.end(), [&](const auto& node) { return !node.is_internal(drv_); });
+	int non_internals = 0;
+	for (std::size_t i = 0; i < drv_.nodes.size(); i++)
+	{
+		if (!drv_.nodes[i].is_internal(drv_))
+		{
+			os << "((state[" << i / 32 << "] & (1 << " << i % 32 << ")) >> " << (i % 32) - non_internals++ << ")";
+			if (non_internals != non_internals_count)
+			{
+				os << " | ";
+			}
+		}
+	}
+	os << ";" << std::endl << "}" << std::endl;
 }

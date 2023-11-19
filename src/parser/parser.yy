@@ -103,14 +103,14 @@ istate_declaration:
   "[" IDENTIFIER "]" "." IDENTIFIER "=" exp "[" NUMBER "]" "," exp "[" NUMBER "]" ";" {
                                                 if ($5 != "istate") throw yy::parser::syntax_error(@5, "expected 'istate' keyword");
                                                 if (!(($9 == 0 && $14 == 1) || ($9 == 1 && $14 == 0))) 
-                                                  throw yy::parser::syntax_error(@9, "numbers in [] must be 0 and 1");
+                                                    throw yy::parser::syntax_error(@9, "numbers in [] must be 0 and 1");
                                                 drv.register_node_istate(std::move($2), std::move($7), std::move($12), $9);
                                             }
 
 
 bnd_declaration:
   IDENTIFIER IDENTIFIER "{" node_body "}"   {
-                                                std::for_each($1.begin(), $1.end(), ::tolower);
+                                                std::transform($1.begin(), $1.end(), $1.begin(), ::tolower);
                                                 if ($1 != "node") throw yy::parser::syntax_error(@1, "expected 'node' keyword");
                                                 drv.register_node(std::move($2), std::move($4)); 
                                             }
@@ -133,29 +133,29 @@ node_attribute:
 %left "*" "/";
 %left UMINUS UPLUS NOT;
 exp:
-  FLOAT                 { $$ = std::make_unique<literal_expression>($1); }
-| NUMBER                { $$ = std::make_unique<literal_expression>($1); }
-| IDENTIFIER            { $$ = std::make_unique<identifier_expression>($1); }
-| VARIABLE              { $$ = std::make_unique<variable_expression>($1); }
-| ALIAS                 { $$ = std::make_unique<alias_expression>($1); }
-| exp "+" exp           { $$ = std::make_unique<binary_expression>(operation::PLUS, std::move($1), std::move($3)); }
-| exp "-" exp           { $$ = std::make_unique<binary_expression>(operation::MINUS, std::move($1), std::move($3)); }
-| exp "*" exp           { $$ = std::make_unique<binary_expression>(operation::STAR, std::move($1), std::move($3)); }
-| exp "/" exp           { $$ = std::make_unique<binary_expression>(operation::SLASH, std::move($1), std::move($3)); }
-| exp "==" exp          { $$ = std::make_unique<binary_expression>(operation::EQ, std::move($1), std::move($3)); }
-| exp "!=" exp          { $$ = std::make_unique<binary_expression>(operation::NE, std::move($1), std::move($3)); }
-| exp "<" exp           { $$ = std::make_unique<binary_expression>(operation::LT, std::move($1), std::move($3)); }
-| exp "<=" exp          { $$ = std::make_unique<binary_expression>(operation::LE, std::move($1), std::move($3)); }
-| exp ">" exp           { $$ = std::make_unique<binary_expression>(operation::GT, std::move($1), std::move($3)); }
-| exp ">=" exp          { $$ = std::make_unique<binary_expression>(operation::GE, std::move($1), std::move($3)); }
-| exp AND exp           { $$ = std::make_unique<binary_expression>(operation::AND, std::move($1), std::move($3)); }
-| exp OR exp            { $$ = std::make_unique<binary_expression>(operation::OR, std::move($1), std::move($3)); }
-| exp XOR exp           { $$ = std::make_unique<binary_expression>(operation::XOR, std::move($1), std::move($3)); }
-| exp "?" exp ":" exp %prec "?"   { $$ = std::make_unique<ternary_expression>(std::move($1), std::move($3), std::move($5)); }
-| "(" exp ")"           { $$ = std::make_unique<parenthesis_expression>(std::move($2)); }
-| "-" exp %prec UMINUS  { $$ = std::make_unique<unary_expression>(operation::MINUS, std::move($2)); }
-| "+" exp %prec UPLUS   { $$ = std::make_unique<unary_expression>(operation::PLUS, std::move($2)); }
-| NOT exp               { $$ = std::make_unique<unary_expression>(operation::NOT, std::move($2)); }
+  FLOAT                                     { $$ = std::make_unique<literal_expression>($1); }
+| NUMBER                                    { $$ = std::make_unique<literal_expression>($1); }
+| IDENTIFIER                                { $$ = std::make_unique<identifier_expression>($1); }
+| VARIABLE                                  { $$ = std::make_unique<variable_expression>($1); }
+| ALIAS                                     { $$ = std::make_unique<alias_expression>($1); }
+| exp "+" exp                               { $$ = std::make_unique<binary_expression>(operation::PLUS, std::move($1), std::move($3)); }
+| exp "-" exp                               { $$ = std::make_unique<binary_expression>(operation::MINUS, std::move($1), std::move($3)); }
+| exp "*" exp                               { $$ = std::make_unique<binary_expression>(operation::STAR, std::move($1), std::move($3)); }
+| exp "/" exp                               { $$ = std::make_unique<binary_expression>(operation::SLASH, std::move($1), std::move($3)); }
+| exp "==" exp                              { $$ = std::make_unique<binary_expression>(operation::EQ, std::move($1), std::move($3)); }
+| exp "!=" exp                              { $$ = std::make_unique<binary_expression>(operation::NE, std::move($1), std::move($3)); }
+| exp "<" exp                               { $$ = std::make_unique<binary_expression>(operation::LT, std::move($1), std::move($3)); }
+| exp "<=" exp                              { $$ = std::make_unique<binary_expression>(operation::LE, std::move($1), std::move($3)); }
+| exp ">" exp                               { $$ = std::make_unique<binary_expression>(operation::GT, std::move($1), std::move($3)); }
+| exp ">=" exp                              { $$ = std::make_unique<binary_expression>(operation::GE, std::move($1), std::move($3)); }
+| exp AND exp                               { $$ = std::make_unique<binary_expression>(operation::AND, std::move($1), std::move($3)); }
+| exp OR exp                                { $$ = std::make_unique<binary_expression>(operation::OR, std::move($1), std::move($3)); }
+| exp XOR exp                               { $$ = std::make_unique<binary_expression>(operation::XOR, std::move($1), std::move($3)); }
+| exp "?" exp ":" exp %prec "?"             { $$ = std::make_unique<ternary_expression>(std::move($1), std::move($3), std::move($5)); }
+| "(" exp ")"                               { $$ = std::make_unique<parenthesis_expression>(std::move($2)); }
+| "-" exp %prec UMINUS                      { $$ = std::make_unique<unary_expression>(operation::MINUS, std::move($2)); }
+| "+" exp %prec UPLUS                       { $$ = std::make_unique<unary_expression>(operation::PLUS, std::move($2)); }
+| NOT exp                                   { $$ = std::make_unique<unary_expression>(operation::NOT, std::move($2)); }
 %%
 
 void

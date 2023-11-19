@@ -20,8 +20,8 @@
 id                      [a-zA-Z][a-zA-Z_0-9]*
 int                     [0-9]+
 blank                   [ \t\r]
-fracconst	            ([0-9]+\.[0-9]+)|([0-9]+\.)|(\.[0-9]+)
-exppart		            [eE](\-|\+)?[0-9]+
+fracconst	              ([0-9]+\.[0-9]+)|([0-9]+\.)|(\.[0-9]+)
+exppart		              [eE](\-|\+)?[0-9]+
 
 %{
   // Code run each time a pattern is matched.
@@ -83,8 +83,8 @@ exppart		            [eE](\-|\+)?[0-9]+
 
 {int}                   return make_NUMBER(yytext, loc);
 
-{fracconst}{exppart}?	return make_FLOAT(yytext, loc);
-[0-9]+{exppart}		    return make_FLOAT(yytext, loc);
+{fracconst}{exppart}? 	return make_FLOAT(yytext, loc);
+[0-9]+{exppart}		      return make_FLOAT(yytext, loc);
 
 {id}                    return yy::parser::make_IDENTIFIER(yytext, loc);
 "$"{id}                 return yy::parser::make_VARIABLE(yytext, loc);
@@ -110,7 +110,7 @@ yy::parser::symbol_type make_FLOAT(const std::string &s, const yy::parser::locat
     double n = strtod(s.c_str(), nullptr);
     if (errno == ERANGE)
         throw yy::parser::syntax_error(loc, "float is out of range: " + s);
-    return yy::parser::make_NUMBER((float)n, loc);
+    return yy::parser::make_FLOAT((float)n, loc);
 }
 
 void syntax_error(const std::string &s, const yy::parser::location_type &loc)

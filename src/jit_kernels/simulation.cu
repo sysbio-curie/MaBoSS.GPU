@@ -71,7 +71,7 @@ __global__ void simulate(int trajectories_count, int trajectory_limit, state_wor
 	curandState rand = rands[id];
 	float time = last_times[id];
 	int step = 0;
-	trajectory_states = trajectory_states + id * trajectory_limit;
+	trajectory_states = trajectory_states + id * state_words * trajectory_limit;
 	trajectory_times = trajectory_times + id * trajectory_limit;
 	trajectory_transition_entropies = trajectory_transition_entropies + id * trajectory_limit;
 	trajectory_status status = trajectory_status::CONTINUE;

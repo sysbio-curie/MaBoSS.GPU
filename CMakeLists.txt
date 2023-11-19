@@ -43,7 +43,10 @@ find_package(FLEX)
 FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
             DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
 
-set(JIT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h ${CMAKE_CURRENT_SOURCE_DIR}/src/state.cuh)
+set(JIT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu 
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h 
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/state.cuh
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu)
 
 foreach(path ${JIT_FILES})
     get_filename_component(name ${path} NAME)

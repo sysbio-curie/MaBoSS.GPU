@@ -1,104 +1,24 @@
 #include <device_launch_parameters.h>
+#include <fstream>
 
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
-#include <fstream>
 
 #include "../diagnostics.h"
-#include "../utils.h"
 #include "window_average_small.h"
 
-__device__ int get_non_internal_index(const state_t& s, const state_t& internal_mask)
-{
-	int idx = 0;
-	int idx_i = 0;
-
-	for (int i = 0; i < states_count; i++)
-	{
-		if (!internal_mask.is_set(i))
-		{
-			int multiplier = s.is_set(i) ? 1 : 0;
-
-			idx += multiplier * (1 << idx_i);
-
-			idx_i++;
-		}
-	}
-
-	return idx;
-}
-
-__global__ void window_average_small(int max_traj_len, int n_trajectories, float window_size, state_t internal_mask,
-									 int noninternal_states_count, const state_t* __restrict__ traj_states,
-									 const float* __restrict__ traj_times, const float* __restrict__ traj_tr_entropies,
-									 float* __restrict__ window_probs, float* __restrict__ window_tr_entropies)
-{
-	auto id = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (id >= n_trajectories * max_traj_len)
-		return;
-
-	if (id % max_traj_len == 0 || traj_times[id] == 0.f)
-	{
-		return;
-	}
-
-	const int state_idx = get_non_internal_index(traj_states[id], internal_mask);
-	const float tr_h = traj_tr_entropies[id];
-
-	float slice_begin = traj_times[id - 1];
-	float slice_end = traj_times[id];
-	int wnd_idx = floorf(slice_begin / window_size);
-
-	while (slice_end > slice_begin)
-	{
-		float wnd_end = (wnd_idx + 1) * window_size;
-		float slice_in_wnd = fminf(slice_end, wnd_end) - slice_begin;
-
-		atomicAdd(window_probs + (wnd_idx * noninternal_states_count + state_idx), slice_in_wnd);
-		atomicAdd(window_tr_entropies + wnd_idx, tr_h * slice_in_wnd);
-
-		wnd_idx++;
-		slice_begin = fminf(slice_end, wnd_end);
-	}
-}
-
-__global__ void window_average_small_discrete(int max_traj_len, int n_trajectories, float window_size,
-											  state_t internal_mask, int noninternal_states_count,
-											  const state_t* __restrict__ traj_states,
-											  const float* __restrict__ traj_times,
-											  const float* __restrict__ traj_tr_entropies,
-											  int* __restrict__ window_probs, float* __restrict__ window_tr_entropies)
-{
-	auto id = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (id >= n_trajectories * max_traj_len)
-		return;
-
-	if (id % max_traj_len == 0 || traj_times[id] == 0.f)
-	{
-		return;
-	}
-
-	const int state_idx = get_non_internal_index(traj_states[id], internal_mask);
-	const float tr_h = traj_tr_entropies[id];
-
-	int wnd_idx = lroundf(traj_times[id - 1] / window_size);
-
-	atomicAdd(window_probs + (wnd_idx * noninternal_states_count + state_idx), 1);
-	atomicAdd(window_tr_entropies + wnd_idx, tr_h);
-}
-
 window_average_small_stats::window_average_small_stats(float window_size, float max_time, bool discrete_time,
-													   state_t internal_mask, size_t non_internals, size_t max_traj_len,
-													   size_t max_n_trajectories)
+													   state_t noninternals_mask, size_t non_internals,
+													   size_t max_traj_len, size_t max_n_trajectories,
+													   kernel_wrapper& window_average_small)
 	: window_size_(window_size),
 	  max_time_(max_time),
 	  discrete_time_(discrete_time),
-	  internal_mask_(internal_mask),
+	  noninternals_mask_(std::move(noninternals_mask)),
 	  noninternal_states_count_(1 << non_internals),
 	  max_traj_len_(max_traj_len),
-	  max_n_trajectories_(max_n_trajectories)
+	  max_n_trajectories_(max_n_trajectories),
+	  window_average_small_(window_average_small)
 {
 	timer t;
 	t.start();
@@ -136,36 +56,30 @@ window_average_small_stats::window_average_small_stats(float window_size, float 
 window_average_small_stats::~window_average_small_stats()
 {
 	thrust::device_free(window_probs_);
+	thrust::device_free(window_probs_discrete_);
 	thrust::device_free(window_tr_entropies_);
 }
 
-void window_average_small_stats::process_batch(thrust::device_ptr<unit_state_t> traj_states,
+void window_average_small_stats::process_batch(thrust::device_ptr<state_word_t> traj_states,
 											   thrust::device_ptr<float> traj_times,
-											   thrust::device_ptr<float> traj_tr_entropies, thrust::device_ptr<unit_state_t>,
-											   thrust::device_ptr<trajectory_status>, int n_trajectories)
+											   thrust::device_ptr<float> traj_tr_entropies,
+											   thrust::device_ptr<state_word_t>, thrust::device_ptr<trajectory_status>,
+											   int n_trajectories)
 {
 	process_batch_internal(traj_states, traj_times, traj_tr_entropies, n_trajectories);
 }
 
-void window_average_small_stats::process_batch_internal(thrust::device_ptr<unit_state_t> traj_states,
+void window_average_small_stats::process_batch_internal(thrust::device_ptr<state_word_t> traj_states,
 														thrust::device_ptr<float> traj_times,
 														thrust::device_ptr<float> traj_tr_entropies, int n_trajectories)
 {
 	timer t;
 	t.start();
 
-	if (discrete_time_)
-	{
-		window_average_small_discrete<<<DIV_UP(max_traj_len_ * n_trajectories, 512), 512>>>(
-			max_traj_len_, n_trajectories, window_size_, internal_mask_, noninternal_states_count_, traj_states.get(),
-			traj_times.get(), traj_tr_entropies.get(), window_probs_discrete_.get(), window_tr_entropies_.get());
-	}
-	else
-	{
-		window_average_small<<<DIV_UP(max_traj_len_ * n_trajectories, 512), 512>>>(
-			max_traj_len_, n_trajectories, window_size_, internal_mask_, noninternal_states_count_, traj_states.get(),
-			traj_times.get(), traj_tr_entropies.get(), window_probs_.get(), window_tr_entropies_.get());
-	}
+	window_average_small_.run(dim3(DIV_UP(max_traj_len_ * n_trajectories, 512)), dim3(512), max_traj_len_,
+							  n_trajectories, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
+							  discrete_time_ ? (void*)window_probs_discrete_.get() : (void*)window_probs_.get(),
+							  window_tr_entropies_.get());
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -202,13 +116,13 @@ void window_average_small_stats::finalize()
 	}
 }
 
-state_t non_internal_idx_to_state(const state_t& internal_mask, int idx)
+state_t non_internal_idx_to_state(const state_t& noninternals_mask, int idx)
 {
-	state_t ret;
+	state_t ret(noninternals_mask.state_size);
 	size_t idx_i = 0;
-	for (size_t i = 0; i < states_count; i++)
+	for (size_t i = 0; i < noninternals_mask.state_size; i++)
 	{
-		if (!internal_mask.is_set(i))
+		if (noninternals_mask.is_set(i))
 		{
 			if ((idx & (1 << idx_i)) != 0)
 				ret.set(i);
@@ -266,38 +180,40 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 			if (prob == 0.f)
 				continue;
 
-			std::cout << prob << " " << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << std::endl;
+			std::cout << prob << " " << non_internal_idx_to_state(noninternals_mask_, s_idx).to_string(nodes)
+					  << std::endl;
 		}
 	}
 }
 
 
-void window_average_small_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string prefix)
+void window_average_small_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes,
+										   const std::string prefix)
 {
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 	std::ofstream ofs;
-	
+
 	ofs.open(prefix + "_probtraj.csv");
-	if (ofs) 
+	if (ofs)
 	{
 		// Computing max states for header
 		int max_states = 0;
 		for (size_t i = 0; i < windows_count; ++i)
 		{
-			int num_states = 0;			
+			int num_states = 0;
 			for (size_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 			{
 				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
 				if (prob == 0.f)
 					continue;
-					
+
 				num_states += 1;
 			}
-			
+
 			max_states = std::max(max_states, num_states);
 		}
-		
+
 		// Writing header
 		ofs << "Time\tTH\tErrorTH\tH\tHD=0";
 		for (int i = 0; i < max_states; i++)
@@ -305,7 +221,7 @@ void window_average_small_stats::write_csv(int n_trajectories, const std::vector
 			ofs << "\tState\tProba\tErrorProba";
 		}
 		ofs << std::endl;
-		
+
 		// Writing trajectories
 		for (size_t i = 0; i < windows_count; ++i)
 		{
@@ -332,7 +248,8 @@ void window_average_small_stats::write_csv(int n_trajectories, const std::vector
 				if (prob == 0.f)
 					continue;
 
-				ofs << "\t" << to_string(non_internal_idx_to_state(internal_mask_, s_idx), nodes) << "\t" << prob << "\t" << 0.f;
+				ofs << "\t" << non_internal_idx_to_state(noninternals_mask_, s_idx).to_string(nodes) << "\t" << prob
+					<< "\t" << 0.f;
 			}
 			ofs << std::endl;
 		}
