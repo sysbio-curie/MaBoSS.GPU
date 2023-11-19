@@ -51,7 +51,8 @@ void add_fixed_states_stats(stats_composite& stats_runner, int state_words)
 			stats_runner.add(std::make_unique<fixed_states_stats<8>>());
 			break;
 		default:
-			throw std::runtime_error("unsupported number of words in noninternals mask");
+			assert(false);
+			break;
 	}
 }
 
@@ -87,6 +88,18 @@ int main(int argc, char** argv)
 	int noninternals_count =
 		std::count_if(drv.nodes.begin(), drv.nodes.end(), [&](const auto& node) { return !node.is_internal(drv); });
 
+	if (noninternals_count > 20)
+	{
+		std::cerr << "This executable supports a maximum of 20 non-internal nodes." << std::endl;
+		return 1;
+	}
+
+	if (drv.nodes.size() > 256)
+	{
+		std::cerr << "This executable supports a maximum of 256 nodes." << std::endl;
+		return 1;
+	}
+
 	std::vector<std::string> node_names;
 	for (auto&& node : drv.nodes)
 		node_names.push_back(node.name);
@@ -97,7 +110,8 @@ int main(int argc, char** argv)
 
 	kernel_compiler compiler;
 
-	compiler.compile_simulation(s, discrete_time);
+	if (compiler.compile_simulation(s, discrete_time))
+		return 1;
 
 	simulation_runner r(sample_count, noninternals_mask.words_n());
 

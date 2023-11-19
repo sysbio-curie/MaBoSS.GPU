@@ -15,5 +15,5 @@ public:
 
 	kernel_compiler();
 	~kernel_compiler();
-	void compile_simulation(const std::string& code, bool discrete_time);
+	int compile_simulation(const std::string& code, bool discrete_time);
 };

@@ -201,7 +201,7 @@ void identifier_expression::generate_code(const driver& drv, const std::string&,
 	int i = it - drv.nodes.begin();
 	int word = i / 32;
 	int bit = i % 32;
-	os << "((state[" << word << "] & " << (1 << bit) << ") != 0)";
+	os << "((state[" << word << "] & " << (1u << bit) << "u) != 0)";
 }
 
 variable_expression::variable_expression(std::string name) : name(std::move(name)) {}

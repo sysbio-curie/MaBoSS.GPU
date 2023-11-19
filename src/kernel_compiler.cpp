@@ -18,7 +18,7 @@ kernel_compiler::~kernel_compiler()
 	CU_CHECK(cuCtxDestroy(cuContext_));
 }
 
-void kernel_compiler::compile_simulation(const std::string& code, bool discrete_time)
+int kernel_compiler::compile_simulation(const std::string& code, bool discrete_time)
 {
 	// Create an instance of nvrtcProgram with the code string.
 	nvrtcProgram prog;
@@ -37,10 +37,12 @@ void kernel_compiler::compile_simulation(const std::string& code, bool discrete_
 		{ "final_states", &final_states.kernel }
 	};
 
-	for (auto&& [name, kernel] : kernel_names)
-		// add kernel name expressions to NVRTC. Note this must be done before
-		// the program is compiled.
-		NVRTC_CHECK(nvrtcAddNameExpression(prog, name));
+	// add kernel name expressions to NVRTC. Note this must be done before
+	// the program is compiled.
+	{
+		for (auto&& [name, kernel] : kernel_names)
+			NVRTC_CHECK(nvrtcAddNameExpression(prog, name));
+	}
 
 	std::vector<const char*> opts = { "-arch=sm_" CUDA_CC, "-I " CUDA_INC_DIR };
 	nvrtcResult compileResult = nvrtcCompileProgram(prog,		  // prog
@@ -54,10 +56,9 @@ void kernel_compiler::compile_simulation(const std::string& code, bool discrete_
 		auto log = std::make_unique<char[]>(logSize);
 		NVRTC_CHECK(nvrtcGetProgramLog(prog, log.get()));
 		std::cerr << log.get() << '\n';
+
 		if (compileResult != NVRTC_SUCCESS)
-		{
-			exit(1);
-		}
+			return 1;
 	}
 
 	// Obtain PTX from the program.
@@ -85,4 +86,6 @@ void kernel_compiler::compile_simulation(const std::string& code, bool discrete_
 
 	// Destroy the program.
 	NVRTC_CHECK(nvrtcDestroyProgram(&prog));
+
+	return 0;
 }
