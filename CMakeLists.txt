@@ -18,13 +18,13 @@ SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
 
 ### Target MaBoSSGCore ###
 
-include(FetchContent)
-FetchContent_Declare(
-  jitify
-  GIT_REPOSITORY https://github.com/NVIDIA/jitify.git
-  GIT_TAG        master
-)
-FetchContent_MakeAvailable(jitify)
+# include(FetchContent)
+# FetchContent_Declare(
+#   jitify
+#   GIT_REPOSITORY https://github.com/NVIDIA/jitify.git
+#   GIT_TAG        master
+# )
+# FetchContent_MakeAvailable(jitify)
 
 set(PARSER_GENERATED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/generated)
 set(JIT_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/include)
@@ -46,7 +46,8 @@ FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner
 set(JIT_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu 
               ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h 
               ${CMAKE_CURRENT_SOURCE_DIR}/src/state.cuh
-              ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu)
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/final_states.cu)
 
 foreach(path ${JIT_FILES})
     get_filename_component(name ${path} NAME)
@@ -84,6 +85,7 @@ add_dependencies(MaBoSSGCore jit_includes)
 
 ### Target unit_MaBoSSG ###
 
+include(FetchContent)
 FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
@@ -114,11 +116,8 @@ gtest_discover_tests(unit_MaBoSSG)
 
 ### Target MaBoSSG ###
 
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
-FetchContent_MakeAvailable(json)
-
 add_executable(MaBoSSG src/main)
-target_link_libraries(MaBoSSG MaBoSSGCore nlohmann_json::nlohmann_json)
+target_link_libraries(MaBoSSG MaBoSSGCore)
 
 ### Target MaBoSSG ###
 

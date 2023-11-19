@@ -116,7 +116,7 @@ void window_average_small_stats::finalize()
 	}
 }
 
-state_t non_internal_idx_to_state(const state_t& noninternals_mask, int idx)
+state_t window_average_small_stats::non_internal_idx_to_state(const state_t& noninternals_mask, int idx)
 {
 	state_t ret(noninternals_mask.state_size);
 	size_t idx_i = 0;

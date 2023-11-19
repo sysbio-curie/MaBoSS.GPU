@@ -4,10 +4,9 @@
 #include <utility>
 #include <vector>
 
+#include "../kernel.h"
 #include "../state.h"
 #include "stats.h"
-
-#include "../kernel.h"
 
 class window_average_small_stats : public stats
 {
@@ -32,8 +31,11 @@ class window_average_small_stats : public stats
 	float get_single_result_prob(int n_trajectories, size_t idx);
 
 public:
+	static state_t non_internal_idx_to_state(const state_t& noninternals_mask, int idx);
+
 	window_average_small_stats(float window_size, float max_time, bool discrete_time, state_t noninternals_mask,
-							   size_t non_internals, size_t max_traj_len, size_t max_n_trajectories, kernel_wrapper& window_average_small);
+							   size_t non_internals, size_t max_traj_len, size_t max_n_trajectories,
+							   kernel_wrapper& window_average_small);
 
 	~window_average_small_stats();
 

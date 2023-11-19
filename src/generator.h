@@ -1,6 +1,5 @@
 #pragma once
 
-#include <jitify.hpp>
 #include <sstream>
 
 #include "parser/driver.h"

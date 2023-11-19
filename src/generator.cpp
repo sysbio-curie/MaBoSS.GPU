@@ -64,6 +64,11 @@ std::string generator::generate_code() const
 		;
 	ss << window_average_small_cu << std::endl;
 
+	const char* final_states_cu =
+#include "jit_kernels/include/final_states.cu"
+		;
+	ss << final_states_cu << std::endl;
+
 	std::cerr << ss.str() << std::endl;
 
 	return ss.str();
@@ -155,7 +160,7 @@ void generator::generate_non_internal_index(std::ostringstream& os) const
 	{
 		if (!drv_.nodes[i].is_internal(drv_))
 		{
-			os << "((state[" << i / 32 << "] & (1 << " << i % 32 << ")) >> " << (i % 32) - non_internals++ << ")";
+			os << "((state[" << i / 32 << "] & (1u << " << i % 32 << ")) >> " << (i % 32) - non_internals++ << ")";
 			if (non_internals != non_internals_count)
 			{
 				os << " | ";

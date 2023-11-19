@@ -14,6 +14,10 @@ struct state_t
 
 	state_t(std::size_t state_size) : state_size(state_size), data(DIV_UP(state_size, word_size), 0) {}
 
+	state_t(std::size_t state_size, const state_word_t* data)
+		: state_size(state_size), data(data, data + DIV_UP(state_size, word_size))
+	{}
+
 	std::size_t words_n() const { return data.size(); }
 
 	bool is_set(int bit) const
@@ -32,7 +36,7 @@ struct state_t
 		data[word_idx] |= (1 << bit_idx);
 	}
 
-	std::string to_string(const std::vector<std::string>& names)
+	std::string to_string(const std::vector<std::string>& names) const
 	{
 		bool first = true;
 		std::string name;
@@ -51,6 +55,31 @@ struct state_t
 			name = "<nil>";
 
 		return name;
+	}
+};
+
+template <int state_words>
+struct static_state_t
+{
+	uint32_t data[state_words] = { 0 };
+
+	constexpr static_state_t() {}
+
+	constexpr bool operator==(const static_state_t<state_words>& other) const
+	{
+		bool same = true;
+		for (int i = 0; i < state_words; i++)
+			same &= data[i] == other.data[i];
+
+		return same;
+	}
+
+	constexpr bool operator<(const static_state_t<state_words>& other) const
+	{
+		for (int i = state_words - 1; i >= 0; i--)
+			if (data[i] != other.data[i])
+				return data[i] < other.data[i];
+		return false;
 	}
 };
 

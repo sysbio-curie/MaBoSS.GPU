@@ -53,6 +53,7 @@ void kernel_compiler::compile_simulation(const std::string& code, bool discrete_
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, "initialize_initial_state"));
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, "simulate"));
 	NVRTC_CHECK(nvrtcAddNameExpression(prog, discrete_time ? "window_average_small_discrete" : "window_average_small"));
+	NVRTC_CHECK(nvrtcAddNameExpression(prog, "final_states"));
 
 	// specify that LTO IR should be generated for LTO operation
 	const char* opts[] = { "-arch=sm_" CUDA_CC, "-I " CUDA_INC_DIR };
@@ -112,6 +113,13 @@ void kernel_compiler::compile_simulation(const std::string& code, bool discrete_
 							));
 
 	CU_CHECK(cuModuleGetFunction(&window_average_small.kernel, cuModule_, name));
+
+	NVRTC_CHECK(nvrtcGetLoweredName(prog,
+									"final_states", // name expression
+									&name			// lowered name
+									));
+
+	CU_CHECK(cuModuleGetFunction(&final_states.kernel, cuModule_, name));
 
 	// Destroy the program.
 	// NVRTC_CHECK(nvrtcDestroyProgram(&prog));

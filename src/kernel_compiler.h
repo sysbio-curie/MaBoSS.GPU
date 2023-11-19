@@ -11,7 +11,7 @@ class kernel_compiler
 	CUcontext cuContext_;
 
 public:
-	kernel_wrapper initialize_random, initialize_initial_state, simulate, window_average_small;
+	kernel_wrapper initialize_random, initialize_initial_state, simulate, window_average_small, final_states;
 
 	kernel_compiler();
 	~kernel_compiler();

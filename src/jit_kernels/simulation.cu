@@ -32,7 +32,7 @@ __global__ void initialize_initial_state(int trajectories_count, state_word_t* _
 		return;
 
 	// initialize state
-	state_word_t s[state_words];
+	state_word_t s[state_words] = { 0 };
 	{
 		// randomly set free vars
 		for (int i = 0; i < state_size; i++)
