@@ -1,6 +1,7 @@
 
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
+#include <thrust/iterator/iterator_adaptor.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/partition.h>
 
@@ -19,6 +20,34 @@ struct eq_ftor
 	eq_ftor(T it) : it(it) {}
 
 	__device__ bool operator()(T other) { return other == it; }
+};
+
+// derive repeat_iterator from iterator_adaptor
+template <typename Iterator>
+class repeat_iterator
+	: public thrust::iterator_adaptor<repeat_iterator<Iterator>, // the first template parameter is the name of the
+																 // iterator we're creating
+									  Iterator // the second template parameter is the name of the iterator we're
+											   // adapting we can use the default for the additional template parameters
+									  >
+{
+public:
+	// shorthand for the name of the iterator_adaptor we're deriving from
+	typedef thrust::iterator_adaptor<repeat_iterator<Iterator>, Iterator> super_t;
+	__host__ __device__ repeat_iterator(const Iterator& x, int n) : super_t(x), begin(x), n(n) {}
+	// befriend thrust::iterator_core_access to allow it access to the private interface below
+	friend class thrust::iterator_core_access;
+
+private:
+	// repeat each element of the adapted range n times
+	unsigned int n;
+	// used to keep track of where we began
+	Iterator begin;
+	// it is private because only thrust::iterator_core_access needs access to it
+	__host__ __device__ typename super_t::reference dereference() const
+	{
+		return *(begin + (this->base() - begin) / n);
+	}
 };
 
 simulation_runner::simulation_runner(int n_trajectories, int state_words)
@@ -93,7 +122,11 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 
 			// move unfinished trajs to the front and update trajectories_in_batch
 			{
-				auto thread_state_begin = thrust::make_zip_iterator(d_last_states, d_last_times, d_rands);
+				thrust::stable_partition(d_last_states, d_last_states + trajectories_in_batch * state_words_,
+										 repeat_iterator(d_traj_statuses, state_words_),
+										 eq_ftor<trajectory_status>(trajectory_status::CONTINUE));
+
+				auto thread_state_begin = thrust::make_zip_iterator(d_last_times, d_rands);
 				auto remaining_trajectories_in_batch =
 					thrust::partition(thread_state_begin, thread_state_begin + trajectories_in_batch, d_traj_statuses,
 									  eq_ftor<trajectory_status>(trajectory_status::CONTINUE))
