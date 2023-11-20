@@ -6,7 +6,7 @@
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
 
-#include "../diagnostics.h"
+#include "../timer.h"
 #include "window_average_small.h"
 
 final_states_stats::final_states_stats(state_t noninternals_mask, int noninternals, kernel_wrapper& final_states)
@@ -14,11 +14,18 @@ final_states_stats::final_states_stats(state_t noninternals_mask, int noninterna
 	  noninternals_mask_(std::move(noninternals_mask)),
 	  final_states_(final_states)
 {
+	timer_stats stats("final_states> initialize");
+
 	occurences_ = thrust::device_malloc<int>(noninternal_states_count_);
 	result_occurences_.resize(noninternal_states_count_);
 }
 
-final_states_stats::~final_states_stats() { thrust::device_free(occurences_); }
+final_states_stats::~final_states_stats()
+{
+	timer_stats stats("final_states> free");
+
+	thrust::device_free(occurences_);
+}
 
 void final_states_stats::process_batch(thrust::device_ptr<state_word_t>, thrust::device_ptr<float>,
 									   thrust::device_ptr<float>, thrust::device_ptr<state_word_t> last_states,
@@ -30,29 +37,23 @@ void final_states_stats::process_batch(thrust::device_ptr<state_word_t>, thrust:
 void final_states_stats::process_batch_internal(thrust::device_ptr<state_word_t> last_states,
 												thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
-	timer t;
-	t.start();
+	timer_stats stats("final_states> process_batch");
 
 	final_states_.run(DIV_UP(n_trajectories, 256), 256, n_trajectories, last_states.get(), traj_statuses.get(),
 					  occurences_.get());
-
-	t.stop();
-
-	if (print_diags)
-	{
-		std::cout << "final_states> process_time: " << t.microsecs() << "ms" << std::endl;
-	}
-
-	CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 void final_states_stats::finalize()
 {
+	timer_stats stats("final_states> finalize");
+
 	thrust::copy(occurences_, occurences_ + noninternal_states_count_, result_occurences_.begin());
 }
 
 void final_states_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
+	timer_stats stats("final_states> visualize");
+
 	std::cout << "final points:" << std::endl;
 
 	for (int i = 0; i < noninternal_states_count_; i++)

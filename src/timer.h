@@ -1,31 +1,43 @@
 #pragma once
 
 #include <chrono>
+#include <map>
+
+#include "timer.h"
+
+constexpr bool print_diags = true;
 
 class timer
 {
 public:
-	timer() {}
+	void start();
 
-	void start() { start_time_ = std::chrono::system_clock::now(); }
+	void stop();
 
-	void stop() { end_time_ = std::chrono::system_clock::now(); }
+	auto seconds() const;
 
-	auto seconds() const { return std::chrono::duration_cast<std::chrono::seconds>(end_time_ - start_time_).count(); }
+	auto millisecs() const;
 
-	auto millisecs() const
-	{
-		return std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - start_time_).count();
-	}
-
-	auto microsecs() const
-	{
-		return std::chrono::duration_cast<std::chrono::microseconds>(end_time_ - start_time_).count();
-	}
+	auto microsecs() const;
 
 private:
 	std::chrono::time_point<std::chrono::system_clock> start_time_;
 	std::chrono::time_point<std::chrono::system_clock> end_time_;
+};
+
+struct timer_stats
+{
+private:
+	static std::map<const char*, size_t> aggregate_stats_;
+	const char* name_;
+	timer t_;
+
+public:
+	timer_stats(const char* name);
+
+	~timer_stats();
+
+	static void print_aggregate_stats();
 };
 
 // Times op's execution using the timer t

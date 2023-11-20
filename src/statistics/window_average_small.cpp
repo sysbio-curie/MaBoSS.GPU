@@ -7,7 +7,7 @@
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
 
-#include "../diagnostics.h"
+#include "../timer.h"
 
 window_average_small_stats::window_average_small_stats(float window_size, float max_time, bool discrete_time,
 													   state_t noninternals_mask, size_t non_internals,
@@ -22,8 +22,7 @@ window_average_small_stats::window_average_small_stats(float window_size, float 
 	  max_n_trajectories_(max_n_trajectories),
 	  window_average_small_(window_average_small)
 {
-	timer t;
-	t.start();
+	timer_stats stats("window_average_small> initialize");
 
 	size_t windows_count = std::ceil(max_time / window_size);
 
@@ -44,19 +43,12 @@ window_average_small_stats::window_average_small_stats(float window_size, float 
 		result_probs_.resize(windows_count * noninternal_states_count_);
 		CUDA_CHECK(cudaMemset(window_probs_.get(), 0, windows_count * noninternal_states_count_ * sizeof(float)));
 	}
-
-	CUDA_CHECK(cudaDeviceSynchronize());
-
-	t.stop();
-
-	if (print_diags)
-	{
-		std::cout << "window_average_small> init_time: " << t.millisecs() << "ms" << std::endl;
-	}
 }
 
 window_average_small_stats::~window_average_small_stats()
 {
+	timer_stats stats("window_average_small> free");
+
 	thrust::device_free(window_probs_);
 	thrust::device_free(window_probs_discrete_);
 	thrust::device_free(window_tr_entropies_);
@@ -75,30 +67,20 @@ void window_average_small_stats::process_batch_internal(thrust::device_ptr<state
 														thrust::device_ptr<float> traj_times,
 														thrust::device_ptr<float> traj_tr_entropies, int n_trajectories)
 {
-	timer t;
-	t.start();
+	timer_stats stats("window_average_small> process_batch");
 
 	window_average_small_.run(dim3(DIV_UP(max_traj_len_ * n_trajectories, 512)), dim3(512), max_traj_len_,
 							  n_trajectories, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
 							  discrete_time_ ? (void*)window_probs_discrete_.get() : (void*)window_probs_.get(),
 							  window_tr_entropies_.get());
-
-	CUDA_CHECK(cudaDeviceSynchronize());
-
-	t.stop();
-
-	if (print_diags)
-	{
-		std::cout << "window_average_small> reduce_time: " << t.millisecs() << "ms" << std::endl;
-	}
 }
 
 void window_average_small_stats::finalize()
 {
+	timer_stats stats("window_average_small> finalize");
+
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 	timer t;
-
-	t.start();
 
 	// copy result data into host
 	if (discrete_time_)
@@ -109,13 +91,6 @@ void window_average_small_stats::finalize()
 							  windows_count * noninternal_states_count_ * sizeof(float), cudaMemcpyDeviceToHost));
 	CUDA_CHECK(cudaMemcpy(result_tr_entropies_.data(), thrust::raw_pointer_cast(window_tr_entropies_),
 						  windows_count * sizeof(float), cudaMemcpyDeviceToHost));
-
-	t.stop();
-
-	if (print_diags)
-	{
-		std::cout << "window_average_small> finalize_time: " << t.millisecs() << "ms" << std::endl;
-	}
 }
 
 state_t window_average_small_stats::non_internal_idx_to_state(const state_t& noninternals_mask, int idx)
@@ -153,6 +128,8 @@ float window_average_small_stats::get_single_result_prob(int n_trajectories, siz
 
 void window_average_small_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
+	timer_stats stats("window_average_small> visualize");
+
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 
 	for (size_t i = 0; i < windows_count; ++i)
@@ -188,10 +165,11 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 	}
 }
 
-
 void window_average_small_stats::write_csv(int n_trajectories, const std::vector<std::string>& nodes,
 										   const std::string& prefix)
 {
+	timer_stats stats("window_average_small> write_csv");
+
 	size_t windows_count = std::ceil(max_time_ / window_size_);
 	std::ofstream ofs;
 

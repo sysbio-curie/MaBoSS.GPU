@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <sstream>
 
+#include "timer.h"
 #include "utils.h"
 
 generator::generator(driver& drv) : drv_(drv) {}
 
 std::string generator::generate_code() const
 {
+	timer_stats stats("generate_code");
+
 	std::ostringstream ss;
 
 	ss << "using uint8_t = unsigned char;" << std::endl;
@@ -69,7 +72,7 @@ std::string generator::generate_code() const
 		;
 	ss << final_states_cu << std::endl;
 
-	std::cerr << ss.str() << std::endl;
+	// std::cerr << ss.str() << std::endl;
 
 	return ss.str();
 }

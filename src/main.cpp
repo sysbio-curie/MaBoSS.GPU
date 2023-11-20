@@ -9,6 +9,7 @@
 #include "statistics/fixed_states.h"
 #include "statistics/stats_composite.h"
 #include "statistics/window_average_small.h"
+#include "timer.h"
 
 state_t create_noninternals_mask(driver& drv)
 {
@@ -144,6 +145,8 @@ int main(int argc, char** argv)
 	{
 		stats_runner.visualize(sample_count, node_names);
 	}
+
+	timer_stats::print_aggregate_stats();
 
 	return 0;
 }

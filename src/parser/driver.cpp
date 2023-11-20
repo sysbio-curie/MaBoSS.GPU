@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "../timer.h"
+
 driver::driver() : trace_parsing(false), trace_scanning(false), start(start_type::none)
 {
 	constants["discrete_time"] = 0;
@@ -13,13 +15,19 @@ driver::driver() : trace_parsing(false), trace_scanning(false), start(start_type
 
 int driver::parse(std::string bnd_file, std::string cfg_file)
 {
-	start = start_type::bnd;
-	int res = parse_one(bnd_file);
-	if (res != 0)
-		return res;
+	{
+		timer_stats t("parse_bnd");
+		start = start_type::bnd;
+		int res = parse_one(bnd_file);
+		if (res != 0)
+			return res;
+	}
 
-	start = start_type::cfg;
-	return parse_one(cfg_file);
+	{
+		timer_stats t("parse_cfg");
+		start = start_type::cfg;
+		return parse_one(cfg_file);
+	}
 }
 
 int driver::parse_one(std::string f)

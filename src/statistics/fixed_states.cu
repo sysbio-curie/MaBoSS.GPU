@@ -8,7 +8,7 @@
 #include <thrust/sort.h>
 #include <thrust/unique.h>
 
-#include "../diagnostics.h"
+#include "../timer.h"
 #include "fixed_states.h"
 
 template <int state_words>
@@ -16,10 +16,7 @@ void fixed_states_stats<state_words>::process_batch_internal(
 	thrust::device_ptr<static_state_t<state_words>> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
 	int n_trajectories)
 {
-	timer t;
-	float copy_sort_reduce_time = 0.f, update_time = 0.f;
-
-	t.start();
+	timer_stats stats("fixed_states_stats> process_batch");
 
 	auto fp_pred = [] __device__(trajectory_status t) { return t == trajectory_status::FIXED_POINT; };
 
@@ -42,10 +39,6 @@ void fixed_states_stats<state_words>::process_batch_internal(
 	thrust::reduce_by_key(final_states.begin(), final_states.end(), thrust::make_constant_iterator(1),
 						  unique_fixed_points.begin(), unique_fixed_points_count.begin());
 
-	t.stop();
-	copy_sort_reduce_time = t.millisecs();
-	t.start();
-
 	std::vector<static_state_t<state_words>> h_unique_fixed_points(unique_fixed_points_size);
 	std::vector<int> h_unique_fixed_points_count(unique_fixed_points_size);
 
@@ -61,16 +54,6 @@ void fixed_states_stats<state_words>::process_batch_internal(
 			result_[h_unique_fixed_points[i]] += h_unique_fixed_points_count[i];
 		else
 			result_[h_unique_fixed_points[i]] = h_unique_fixed_points_count[i];
-	}
-
-	t.stop();
-
-	update_time = t.millisecs();
-
-	if (print_diags)
-	{
-		std::cout << "fixed_states> copy_sort_reduce_time: " << copy_sort_reduce_time << "ms" << std::endl;
-		std::cout << "fixed_states> update_time: " << update_time << "ms" << std::endl;
 	}
 }
 
@@ -90,6 +73,8 @@ void fixed_states_stats<state_words>::process_batch(thrust::device_ptr<state_wor
 template <int state_words>
 void fixed_states_stats<state_words>::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
+	timer_stats stats("fixed_states_stats> visualize");
+
 	std::cout << "fixed points:" << std::endl;
 
 	for (const auto& p : result_)
@@ -103,6 +88,8 @@ template <int state_words>
 void fixed_states_stats<state_words>::write_csv(int n_trajectories, const std::vector<std::string>& nodes,
 												const std::string& prefix)
 {
+	timer_stats stats("fixed_states_stats> write_csv");
+
 	std::ofstream ofs;
 
 	ofs.open(prefix + "_fp.csv");
