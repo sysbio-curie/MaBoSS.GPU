@@ -23,15 +23,15 @@ set(JIT_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/include)
 
 add_custom_target(make-parser-gen-dir ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${PARSER_GENERATED_PATH})
-    
+
 add_custom_target(make-jit-gen-dir ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${JIT_INCLUDE_PATH})
 
-find_package(BISON)
+find_package(BISON REQUIRED)
 BISON_TARGET(maboss_parser src/parser/parser.yy ${PARSER_GENERATED_PATH}/parser.cpp
              DEFINES_FILE ${PARSER_GENERATED_PATH}/parser.h)
 
-find_package(FLEX)
+find_package(FLEX REQUIRED)
 FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
             DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
 
