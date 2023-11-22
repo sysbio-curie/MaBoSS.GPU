@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 {
 	std::vector<std::string> args(argv + 1, argv + argc);
 
-	if (!(args.size() == 2 || (args.size() == 4 || args[0] == "-o")))
+	if (!(args.size() == 2 || (args.size() == 4 && args[0] == "-o")))
 	{
 		std::cout << "Usage: MaBoSSG [-o prefix] bnd_file cfg_file" << std::endl;
 		return 1;

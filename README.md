@@ -20,12 +20,12 @@ cmake -DCMAKE_BUILD_TYPE=Release -B build .
 cmake --build build
 ``` 
 
-The executable takes 2 mandatory command line arguments, the `.bnd` and the `.cfg` files, and one optional argument denoting the prefix of output files. If the optional argument is not provided, the results will be printed on the standard output.
+The executable takes 2 mandatory command line arguments, the `.bnd` and the `.cfg` files, and one optional argument denoting the prefix of output files (`-o`). If the optional argument is not provided, the results will be printed on the standard output.
 
 This command simulates the Sizek model and outputs 2 files, `out_probtraj.csv` and `out_fp.csv` similarly as in the original MaBoSS. 
 ```
 # run
-build/MaBoSSG sizek.bnd sizek.cfg -o out
+build/MaBoSSG -o out data/sizek.bnd data/sizek.cfg
 ```
 
 ## Next steps
