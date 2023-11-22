@@ -153,7 +153,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 			CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectories_in_batch * trajectory_len_limit * sizeof(float)));
 		}
 
-		if (print_diags)
+		if (timer_stats::enable_diags())
 		{
 			std::cerr << "simulation_runner> remaining trajs: " << remaining_trajs << std::endl;
 		}

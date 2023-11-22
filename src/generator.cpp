@@ -10,7 +10,7 @@ generator::generator(driver& drv) : drv_(drv) {}
 
 std::string generator::generate_code() const
 {
-	timer_stats stats("generate_code");
+	timer_stats stats("generator> generate");
 
 	std::ostringstream ss;
 

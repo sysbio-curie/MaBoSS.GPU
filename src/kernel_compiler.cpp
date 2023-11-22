@@ -16,13 +16,14 @@ kernel_compiler::kernel_compiler()
 
 kernel_compiler::~kernel_compiler()
 {
+	timer_stats stats("compiler> free");
 	CU_CHECK(cuModuleUnload(cuModule_));
 	CU_CHECK(cuCtxDestroy(cuContext_));
 }
 
 int kernel_compiler::compile_simulation(const std::string& code, bool discrete_time)
 {
-	timer_stats stats("compiler> compile_simulation");
+	timer_stats stats("compiler> whole_compilation");
 
 	// Create an instance of nvrtcProgram with the code string.
 	nvrtcProgram prog;

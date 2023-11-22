@@ -14,7 +14,7 @@ final_states_stats::final_states_stats(state_t noninternals_mask, int noninterna
 	  noninternals_mask_(std::move(noninternals_mask)),
 	  final_states_(final_states)
 {
-	timer_stats stats("final_states> initialize");
+	timer_stats stats("final_states_stats> initialize");
 
 	occurences_ = thrust::device_malloc<int>(noninternal_states_count_);
 	result_occurences_.resize(noninternal_states_count_);
@@ -22,7 +22,7 @@ final_states_stats::final_states_stats(state_t noninternals_mask, int noninterna
 
 final_states_stats::~final_states_stats()
 {
-	timer_stats stats("final_states> free");
+	timer_stats stats("final_states_stats> free");
 
 	thrust::device_free(occurences_);
 }
@@ -37,7 +37,7 @@ void final_states_stats::process_batch(thrust::device_ptr<state_word_t>, thrust:
 void final_states_stats::process_batch_internal(thrust::device_ptr<state_word_t> last_states,
 												thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
-	timer_stats stats("final_states> process_batch");
+	timer_stats stats("final_states_stats> process_batch");
 
 	final_states_.run(DIV_UP(n_trajectories, 256), 256, n_trajectories, last_states.get(), traj_statuses.get(),
 					  occurences_.get());
@@ -45,14 +45,14 @@ void final_states_stats::process_batch_internal(thrust::device_ptr<state_word_t>
 
 void final_states_stats::finalize()
 {
-	timer_stats stats("final_states> finalize");
+	timer_stats stats("final_states_stats> finalize");
 
 	thrust::copy(occurences_, occurences_ + noninternal_states_count_, result_occurences_.begin());
 }
 
 void final_states_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
 {
-	timer_stats stats("final_states> visualize");
+	timer_stats stats("final_states_stats> visualize");
 
 	std::cout << "final points:" << std::endl;
 

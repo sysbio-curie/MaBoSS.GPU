@@ -5,8 +5,6 @@
 
 #include "timer.h"
 
-constexpr bool print_diags = true;
-
 class timer
 {
 public:
@@ -38,6 +36,8 @@ public:
 	~timer_stats();
 
 	static void print_aggregate_stats();
+
+	static bool enable_diags();
 };
 
 // Times op's execution using the timer t

@@ -16,7 +16,7 @@ driver::driver() : trace_parsing(false), trace_scanning(false), start(start_type
 int driver::parse(std::string bnd_file, std::string cfg_file)
 {
 	{
-		timer_stats t("parse_bnd");
+		timer_stats t("parser> parse_bnd");
 		start = start_type::bnd;
 		int res = parse_one(bnd_file);
 		if (res != 0)
@@ -24,7 +24,7 @@ int driver::parse(std::string bnd_file, std::string cfg_file)
 	}
 
 	{
-		timer_stats t("parse_cfg");
+		timer_stats t("parser> parse_cfg");
 		start = start_type::cfg;
 		return parse_one(cfg_file);
 	}

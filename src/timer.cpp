@@ -2,6 +2,8 @@
 
 #include "utils.h"
 
+constexpr bool print_diags = true;
+
 void timer::start() { start_time_ = std::chrono::system_clock::now(); }
 
 void timer::stop() { end_time_ = std::chrono::system_clock::now(); }
@@ -29,6 +31,15 @@ timer_stats::timer_stats(const char* name) : name_(name)
 		t_.start();
 }
 
+void print_one(const char* name, size_t micros)
+{
+	auto name_size = std::string(name).size();
+	auto micros_size = std::to_string(micros).size();
+
+	std::cerr << name << std::string(50 - name_size, ' ') << ":" << std::string(10 - micros_size, ' ') << micros
+			  << " us" << std::endl;
+}
+
 timer_stats::~timer_stats()
 {
 	if constexpr (print_diags)
@@ -37,7 +48,8 @@ timer_stats::~timer_stats()
 
 		t_.stop();
 		aggregate_stats_[name_] += t_.microsecs();
-		std::cerr << name_ << ": " << t_.microsecs() << "us" << std::endl;
+
+		print_one(name_, t_.microsecs());
 	}
 }
 
@@ -48,7 +60,9 @@ void timer_stats::print_aggregate_stats()
 		std::cerr << "Aggregate stats:" << std::endl;
 		for (auto& p : aggregate_stats_)
 		{
-			std::cerr << p.first << ": " << p.second << "us" << std::endl;
+			print_one(p.first, p.second);
 		}
 	}
 }
+
+bool timer_stats::enable_diags() { return print_diags; }
