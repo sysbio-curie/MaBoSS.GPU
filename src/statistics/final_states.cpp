@@ -39,8 +39,8 @@ void final_states_stats::process_batch_internal(thrust::device_ptr<state_word_t>
 {
 	timer_stats stats("final_states_stats> process_batch");
 
-	final_states_.run(DIV_UP(n_trajectories, 256), 256, n_trajectories, last_states.get(), traj_statuses.get(),
-					  occurences_.get());
+	final_states_.run(DIV_UP(n_trajectories, 256), 256, n_trajectories, (int)noninternals_mask_.words_n(),
+					  last_states.get(), traj_statuses.get(), occurences_.get());
 }
 
 void final_states_stats::finalize()

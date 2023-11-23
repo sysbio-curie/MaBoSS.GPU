@@ -1,5 +1,13 @@
+using uint8_t = unsigned char;
+using uint32_t = unsigned int;
 
-extern "C" __global__ void final_states(int n_trajectories, const state_word_t* __restrict__ last_states,
+#include "../state_word.h"
+#include "../trajectory_status.h"
+
+extern __device__ uint32_t get_non_internal_index(const state_word_t* __restrict__ state);
+
+extern "C" __global__ void final_states(int n_trajectories, int state_words,
+										const state_word_t* __restrict__ last_states,
 										const trajectory_status* __restrict__ traj_statuses, int* __restrict__ results)
 {
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;

@@ -40,11 +40,11 @@ FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner
             DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
 
 set(JIT_INCLUDE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h 
-                      ${CMAKE_CURRENT_SOURCE_DIR}/src/state_word.h
-                      ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu
-                      ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/final_states.cu)
+                      ${CMAKE_CURRENT_SOURCE_DIR}/src/state_word.h)
 
-set(JIT_FATBIN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu)
+set(JIT_FATBIN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/simulation.cu
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/final_states.cu
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/jit_kernels/window_average_small.cu)
 
 foreach(path ${JIT_INCLUDE_FILES})
     get_filename_component(name ${path} NAME)

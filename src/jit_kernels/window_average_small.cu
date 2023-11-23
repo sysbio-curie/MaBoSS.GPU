@@ -1,5 +1,11 @@
+using uint32_t = unsigned int;
 
-extern "C" __global__ void window_average_small(int max_traj_len, int n_trajectories,
+#include "../state_word.h"
+
+extern __device__ uint32_t get_non_internal_index(const state_word_t* __restrict__ state);
+
+extern "C" __global__ void window_average_small(int max_traj_len, int n_trajectories, int state_words,
+												uint32_t noninternal_states_count, float time_tick,
 												const state_word_t* __restrict__ traj_states,
 												const float* __restrict__ traj_times,
 												const float* __restrict__ traj_tr_entropies,
@@ -37,7 +43,8 @@ extern "C" __global__ void window_average_small(int max_traj_len, int n_trajecto
 	}
 }
 
-extern "C" __global__ void window_average_small_discrete(int max_traj_len, int n_trajectories,
+extern "C" __global__ void window_average_small_discrete(int max_traj_len, int n_trajectories, int state_words,
+														 uint32_t noninternal_states_count, float time_tick,
 														 const state_word_t* __restrict__ traj_states,
 														 const float* __restrict__ traj_times,
 														 const float* __restrict__ traj_tr_entropies,

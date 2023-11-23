@@ -19,10 +19,6 @@ std::string generator::generate_code() const
 
 	ss << "constexpr int state_size = " << drv_.nodes.size() << ";" << std::endl;
 	ss << "constexpr int state_words = " << DIV_UP(drv_.nodes.size(), 32) << ";" << std::endl;
-	ss << "constexpr int noninternal_states_count = "
-	   << (1 << std::count_if(drv_.nodes.begin(), drv_.nodes.end(),
-							  [&](const auto& node) { return !node.is_internal(drv_); }))
-	   << ";" << std::endl;
 	ss << "constexpr bool discrete_time = " << (drv_.constants["discrete_time"] != 0) << ";" << std::endl;
 	ss << "constexpr float max_time = " << drv_.constants["max_time"] << ";" << std::endl;
 	ss << "constexpr float time_tick = " << drv_.constants["time_tick"] << ";" << std::endl;
@@ -51,16 +47,6 @@ std::string generator::generate_code() const
 
 	generate_non_internal_index(ss);
 	ss << std::endl;
-
-	const char* window_average_small_cu =
-#include "jit_kernels/include/window_average_small.cu"
-		;
-	ss << window_average_small_cu << std::endl;
-
-	const char* final_states_cu =
-#include "jit_kernels/include/final_states.cu"
-		;
-	ss << final_states_cu << std::endl;
 
 	if (timer_stats::enable_diags())
 		std::cerr << ss.str() << std::endl;

@@ -35,6 +35,14 @@ constexpr unsigned char simulation_fatbin[] =
 #include "jit_kernels/include/simulation.fatbin.h"
 	;
 
+constexpr unsigned char final_states_fatbin[] =
+#include "jit_kernels/include/final_states.fatbin.h"
+	;
+
+constexpr unsigned char window_average_small_fatbin[] =
+#include "jit_kernels/include/window_average_small.fatbin.h"
+	;
+
 kernel_compiler::kernel_compiler()
 {
 	timer_stats stats("compiler> init");
@@ -125,6 +133,11 @@ int kernel_compiler::compile_simulation(const std::string& code, bool discrete_t
 		// The fatbinary contains LTO IR generated offline using nvcc
 		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)simulation_fatbin,
 												 sizeof(simulation_fatbin), "simulation.fatbin"));
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)final_states_fatbin,
+												 sizeof(final_states_fatbin), "final_states.fatbin"));
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)window_average_small_fatbin,
+												 sizeof(window_average_small_fatbin), "window_average_small.fatbin"));
+
 		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_LTOIR, (void*)LTOIR.get(), LTOIRSize,
 												 "simulation_formulae.cu"));
 
