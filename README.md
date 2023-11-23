@@ -11,7 +11,7 @@ The `.bnd` and `.cfg` files are parsed using Flex and Bison. If you are building
 The full list of requirements:
 - `Flex` and `Bison`
 - `CMake 3.18 or newer` 
-- `CUDA Toolkit 11.8  or newer`
+- `CUDA Toolkit 12.0  or newer`
 
 
 To compile the executable using CMake, write:
