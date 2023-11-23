@@ -106,12 +106,12 @@ void binary_expression::generate_code(const driver& drv, const std::string& curr
 			break;
 		case operation::AND:
 			left->generate_code(drv, current_node, os);
-			os << " && ";
+			os << " & ";
 			right->generate_code(drv, current_node, os);
 			break;
 		case operation::OR:
 			left->generate_code(drv, current_node, os);
-			os << " || ";
+			os << " | ";
 			right->generate_code(drv, current_node, os);
 			break;
 		case operation::EQ:
@@ -201,7 +201,7 @@ void identifier_expression::generate_code(const driver& drv, const std::string&,
 	int i = it - drv.nodes.begin();
 	int word = i / 32;
 	int bit = i % 32;
-	os << "(state[" << word << "] & " << (1u << bit) << "u)";
+	os << "((state[" << word << "] & " << (1u << bit) << "u) != 0)";
 }
 
 variable_expression::variable_expression(std::string name) : name(std::move(name)) {}
