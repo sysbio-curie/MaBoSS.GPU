@@ -11,13 +11,13 @@ __device__ int select_flip_bit(int state_size, const float* __restrict__ transit
 {
 	float r = curand_uniform(rand) * total_rate;
 	float sum = 0;
+	int idx = 0;
 	for (int i = 0; i < state_size; i++)
 	{
 		sum += transition_rates[i];
-		if (r < sum)
-			return i;
+		idx += (sum <= r) ? 1 : 0;
 	}
-	return state_size - 1;
+	return idx;
 }
 
 extern "C" __global__ void initialize_random(int trajectories_count, unsigned long long seed,
