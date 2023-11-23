@@ -2,9 +2,9 @@
 
 void stats_composite::add(stats_ptr&& stat) { composed_stats_.emplace_back(std::move(stat)); }
 
-void stats_composite::process_batch(thrust::device_ptr<state_t> traj_states, thrust::device_ptr<float> traj_times,
+void stats_composite::process_batch(thrust::device_ptr<state_word_t> traj_states, thrust::device_ptr<float> traj_times,
 									thrust::device_ptr<float> traj_tr_entropies,
-									thrust::device_ptr<state_t> last_states,
+									thrust::device_ptr<state_word_t> last_states,
 									thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories)
 {
 	for (auto&& stat : composed_stats_)
@@ -23,7 +23,7 @@ void stats_composite::visualize(int n_trajectories, const std::vector<std::strin
 		stat->visualize(n_trajectories, nodes);
 }
 
-void stats_composite::write_csv(int n_trajectories, const std::vector<std::string>& nodes, std::string prefix)
+void stats_composite::write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string& prefix)
 {
 	for (auto&& stat : composed_stats_)
 		stat->write_csv(n_trajectories, nodes, prefix);
