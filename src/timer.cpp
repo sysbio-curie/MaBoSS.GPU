@@ -2,7 +2,7 @@
 
 #include "utils.h"
 
-constexpr bool print_diags = true;
+constexpr bool print_diags = false;
 
 void timer::start() { start_time_ = std::chrono::system_clock::now(); }
 
