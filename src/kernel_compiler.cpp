@@ -1,10 +1,47 @@
 #include "kernel_compiler.h"
 
 #include <memory>
+#include <nvJitLink.h>
 #include <vector>
 
 #include "timer.h"
 #include "utils.h"
+
+#define NVJITLINK_CHECK(h, x)                                                                                          \
+	do                                                                                                                 \
+	{                                                                                                                  \
+		nvJitLinkResult result = x;                                                                                    \
+		if (result != NVJITLINK_SUCCESS)                                                                               \
+		{                                                                                                              \
+			std::cerr << "\nerror: " #x " failed with error " << result << '\n';                                       \
+			size_t lsize;                                                                                              \
+			result = nvJitLinkGetErrorLogSize(h, &lsize);                                                              \
+			if (result == NVJITLINK_SUCCESS && lsize > 0)                                                              \
+			{                                                                                                          \
+				char* log = (char*)malloc(lsize);                                                                      \
+				result = nvJitLinkGetErrorLog(h, log);                                                                 \
+				if (result == NVJITLINK_SUCCESS)                                                                       \
+				{                                                                                                      \
+					std::cerr << "error: " << log << '\n';                                                             \
+					free(log);                                                                                         \
+				}                                                                                                      \
+			}                                                                                                          \
+			exit(1);                                                                                                   \
+		}                                                                                                              \
+	} while (0)
+
+
+constexpr unsigned char simulation_fatbin[] =
+#include "jit_kernels/include/simulation.fatbin.h"
+	;
+
+constexpr unsigned char final_states_fatbin[] =
+#include "jit_kernels/include/final_states.fatbin.h"
+	;
+
+constexpr unsigned char window_average_small_fatbin[] =
+#include "jit_kernels/include/window_average_small.fatbin.h"
+	;
 
 kernel_compiler::kernel_compiler()
 {
@@ -46,20 +83,11 @@ int kernel_compiler::compile_simulation(const std::string& code, bool discrete_t
 		{ "final_states", &final_states.kernel }
 	};
 
-	// add kernel name expressions to NVRTC. Note this must be done before
-	// the program is compiled.
-	{
-		timer_stats stats("compiler> nvrtc_add_name_expression");
-
-		for (auto&& [name, kernel] : kernel_names)
-			NVRTC_CHECK(nvrtcAddNameExpression(prog, name));
-	}
-
 	nvrtcResult compileResult;
 	{
 		timer_stats stats("compiler> nvrtc_compile_program");
 
-		std::vector<const char*> opts = { "-arch=sm_" CUDA_CC, "-I " CUDA_INC_DIR };
+		std::vector<const char*> opts = { "-dlto", "--relocatable-device-code=true" };
 		compileResult = nvrtcCompileProgram(prog,		  // prog
 											opts.size(),  // numOptions
 											opts.data()); // options
@@ -81,16 +109,46 @@ int kernel_compiler::compile_simulation(const std::string& code, bool discrete_t
 			return 1;
 	}
 
-	// Obtain PTX from the program.
+	// Obtain generated LTO IR from the program.
+	std::unique_ptr<char[]> LTOIR;
+	size_t LTOIRSize;
 	{
-		timer_stats stats("compiler> nvrtc_get_ptx");
+		timer_stats stats("compiler> nvrtc_get_LTOIR");
 
-		size_t ptxSize;
-		NVRTC_CHECK(nvrtcGetPTXSize(prog, &ptxSize));
-		auto ptx = std::make_unique<char[]>(ptxSize);
-		NVRTC_CHECK(nvrtcGetPTX(prog, ptx.get()));
+		NVRTC_CHECK(nvrtcGetLTOIRSize(prog, &LTOIRSize));
+		LTOIR = std::make_unique<char[]>(LTOIRSize);
 
-		CU_CHECK(cuModuleLoadDataEx(&cuModule_, ptx.get(), 0, 0, 0));
+		NVRTC_CHECK(nvrtcGetLTOIR(prog, LTOIR.get()));
+		// Destroy the program.
+		NVRTC_CHECK(nvrtcDestroyProgram(&prog));
+	}
+
+	{
+		timer_stats stats("compiler> link");
+
+		nvJitLinkHandle handle;
+		const char* lopts[] = { "-dlto", "-arch=sm_" CUDA_CC };
+		NVJITLINK_CHECK(handle, nvJitLinkCreate(&handle, 2, lopts));
+
+		// The fatbinary contains LTO IR generated offline using nvcc
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)simulation_fatbin,
+												 sizeof(simulation_fatbin), "simulation.fatbin"));
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)final_states_fatbin,
+												 sizeof(final_states_fatbin), "final_states.fatbin"));
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_FATBIN, (void*)window_average_small_fatbin,
+												 sizeof(window_average_small_fatbin), "window_average_small.fatbin"));
+
+		NVJITLINK_CHECK(handle, nvJitLinkAddData(handle, NVJITLINK_INPUT_LTOIR, (void*)LTOIR.get(), LTOIRSize,
+												 "simulation_formulae.cu"));
+
+		NVJITLINK_CHECK(handle, nvJitLinkComplete(handle));
+		size_t cubinSize;
+		NVJITLINK_CHECK(handle, nvJitLinkGetLinkedCubinSize(handle, &cubinSize));
+		std::unique_ptr<char[]> cubin = std::make_unique<char[]>(cubinSize);
+		NVJITLINK_CHECK(handle, nvJitLinkGetLinkedCubin(handle, cubin.get()));
+		NVJITLINK_CHECK(handle, nvJitLinkDestroy(&handle));
+
+		CU_CHECK(cuModuleLoadData(&cuModule_, cubin.get()));
 	}
 
 	{
@@ -98,20 +156,9 @@ int kernel_compiler::compile_simulation(const std::string& code, bool discrete_t
 
 		for (auto&& [name, kernel] : kernel_names)
 		{
-			const char* lowered;
-			// note: this call must be made after NVRTC program has been
-			// compiled and before it has been destroyed.
-			NVRTC_CHECK(nvrtcGetLoweredName(prog,
-											name,	 // name expression
-											&lowered // lowered name
-											));
-
-			CU_CHECK(cuModuleGetFunction(kernel, cuModule_, lowered));
+			CU_CHECK(cuModuleGetFunction(kernel, cuModule_, name));
 		}
 	}
-
-	// Destroy the program.
-	NVRTC_CHECK(nvrtcDestroyProgram(&prog));
 
 	return 0;
 }

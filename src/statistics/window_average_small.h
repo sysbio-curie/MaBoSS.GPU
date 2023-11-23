@@ -16,7 +16,7 @@ class window_average_small_stats : public stats
 	float window_size_;
 	float max_time_;
 	bool discrete_time_;
-	int noninternal_states_count_;
+	uint32_t noninternal_states_count_;
 
 	state_t noninternals_mask_;
 

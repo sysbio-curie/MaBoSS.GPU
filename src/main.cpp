@@ -24,6 +24,17 @@ state_t create_noninternals_mask(driver& drv)
 	return mask;
 }
 
+std::vector<float> create_initial_probs(driver& drv)
+{
+	std::vector<float> initial_probs;
+	for (auto&& node : drv.nodes)
+	{
+		initial_probs.push_back(node.istate);
+	}
+
+	return initial_probs;
+}
+
 void add_fixed_states_stats(stats_composite& stats_runner, int state_words)
 {
 	switch (state_words)
@@ -74,12 +85,13 @@ int do_compilation(driver& drv, bool discrete_time, std::optional<kernel_compile
 	return 0;
 }
 
-stats_composite do_simulation(bool discrete_time, float max_time, float time_tick, int sample_count,
+stats_composite do_simulation(bool discrete_time, float max_time, float time_tick, int sample_count, int state_size,
+							  unsigned long long seed, std::vector<float> initial_probs,
 							  const state_t& noninternals_mask, int noninternals_count, kernel_compiler& compiler)
 {
 	timer_stats stats("main> simulation");
 
-	simulation_runner r(sample_count, noninternals_mask.words_n());
+	simulation_runner r(sample_count, state_size, seed, std::move(initial_probs));
 
 	stats_composite stats_runner;
 
@@ -151,6 +163,8 @@ int main(int argc, char** argv)
 	float max_time = drv.constants["max_time"];
 	float time_tick = drv.constants["time_tick"];
 	int sample_count = drv.constants["sample_count"];
+	unsigned long long seed = drv.constants["seed_pseudorandom"];
+	auto initial_probs = create_initial_probs(drv);
 	auto noninternals_mask = create_noninternals_mask(drv);
 	int noninternals_count =
 		std::count_if(drv.nodes.begin(), drv.nodes.end(), [&](const auto& node) { return !node.is_internal(drv); });
@@ -177,8 +191,8 @@ int main(int argc, char** argv)
 		if (do_compilation(drv, discrete_time, compiler))
 			return 1;
 
-		auto stats_runner = do_simulation(discrete_time, max_time, time_tick, sample_count, noninternals_mask,
-										  noninternals_count, *compiler);
+		auto stats_runner = do_simulation(discrete_time, max_time, time_tick, sample_count, drv.nodes.size(), seed,
+										  std::move(initial_probs), noninternals_mask, noninternals_count, *compiler);
 
 		do_visualization(stats_runner, sample_count, node_names, output_prefix);
 	}

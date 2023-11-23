@@ -70,7 +70,8 @@ void window_average_small_stats::process_batch_internal(thrust::device_ptr<state
 	timer_stats stats("window_average_small> process_batch");
 
 	window_average_small_.run(dim3(DIV_UP(max_traj_len_ * n_trajectories, 512)), dim3(512), max_traj_len_,
-							  n_trajectories, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
+							  n_trajectories, (int)noninternals_mask_.words_n(), noninternal_states_count_,
+							  window_size_, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
 							  discrete_time_ ? (void*)window_probs_discrete_.get() : (void*)window_probs_.get(),
 							  window_tr_entropies_.get());
 }
@@ -138,7 +139,7 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 		float wnd_tr_entropy = result_tr_entropies_[i] / n_trajectories;
 		wnd_tr_entropy /= discrete_time_ ? 1 : window_size_;
 
-		for (int s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+		for (uint32_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 		{
 			auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
@@ -152,7 +153,7 @@ void window_average_small_stats::visualize(int n_trajectories, const std::vector
 		std::cout << "entropy: " << entropy << std::endl;
 		std::cout << "transition entropy: " << wnd_tr_entropy << std::endl;
 
-		for (int s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+		for (uint32_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 		{
 			auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
@@ -181,7 +182,7 @@ void window_average_small_stats::write_csv(int n_trajectories, const std::vector
 		for (size_t i = 0; i < windows_count; ++i)
 		{
 			int num_states = 0;
-			for (int s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			for (uint32_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 			{
 				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
@@ -209,7 +210,7 @@ void window_average_small_stats::write_csv(int n_trajectories, const std::vector
 			float wnd_tr_entropy = result_tr_entropies_[i] / n_trajectories;
 			wnd_tr_entropy /= discrete_time_ ? 1 : window_size_;
 
-			for (int s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			for (uint32_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 			{
 				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
@@ -221,7 +222,7 @@ void window_average_small_stats::write_csv(int n_trajectories, const std::vector
 			ofs << i * window_size_ << "\t";
 			ofs << wnd_tr_entropy << "\t" << 0.f << "\t" << entropy << "\t" << 0.f;
 
-			for (int s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
+			for (uint32_t s_idx = 0; s_idx < noninternal_states_count_; s_idx++)
 			{
 				auto prob = get_single_result_prob(n_trajectories, i * noninternal_states_count_ + s_idx);
 
