@@ -19,7 +19,6 @@ std::string generator::generate_code() const
 
 	ss << "constexpr int state_size = " << drv_.nodes.size() << ";" << std::endl;
 	ss << "constexpr int state_words = " << DIV_UP(drv_.nodes.size(), 32) << ";" << std::endl;
-	ss << "constexpr int word_size = " << 32 << ";" << std::endl;
 	ss << "constexpr int noninternal_states_count = "
 	   << (1 << std::count_if(drv_.nodes.begin(), drv_.nodes.end(),
 							  [&](const auto& node) { return !node.is_internal(drv_); }))
@@ -27,13 +26,6 @@ std::string generator::generate_code() const
 	ss << "constexpr bool discrete_time = " << (drv_.constants["discrete_time"] != 0) << ";" << std::endl;
 	ss << "constexpr float max_time = " << drv_.constants["max_time"] << ";" << std::endl;
 	ss << "constexpr float time_tick = " << drv_.constants["time_tick"] << ";" << std::endl;
-	ss << "constexpr unsigned long long seed = " << drv_.constants["seed_pseudorandom"] << ";" << std::endl;
-	ss << "constexpr float initial_probs[] = { ";
-	for (auto&& node : drv_.nodes)
-	{
-		ss << node.istate << ", ";
-	}
-	ss << "};" << std::endl << std::endl;
 
 	const char* state_cuh =
 #include "jit_kernels/include/state_word.h"
@@ -54,10 +46,8 @@ std::string generator::generate_code() const
 		;
 	ss << traj_status_cu << std::endl;
 
-	const char* simulation_cu =
-#include "jit_kernels/include/simulation.cu"
-		;
-	ss << simulation_cu << std::endl;
+	generate_simulate(ss);
+	ss << std::endl;
 
 	generate_non_internal_index(ss);
 	ss << std::endl;
@@ -72,7 +62,8 @@ std::string generator::generate_code() const
 		;
 	ss << final_states_cu << std::endl;
 
-	// std::cerr << ss.str() << std::endl;
+	if (timer_stats::enable_diags())
+		std::cerr << ss.str() << std::endl;
 
 	return ss.str();
 }
@@ -148,6 +139,36 @@ void generator::generate_transition_entropy_function(std::ostringstream& os) con
 
 	os << "    return entropy;" << std::endl;
 	os << "}";
+}
+
+void generator::generate_simulate(std::ostringstream& os) const
+{
+	os << R"(
+extern __device__ void simulate_inner(int trajectories_count, int state_size, int trajectory_limit, float time_tick,
+									  float max_time, bool discrete_time, state_word_t* __restrict__ last_states,
+									  float* __restrict__ last_times, void* __restrict__ rands,
+									  state_word_t* __restrict__ trajectory_states,
+									  float* __restrict__ trajectory_times,
+									  float* __restrict__ trajectory_transition_entropies,
+									  trajectory_status* __restrict__ trajectory_statuses,
+									  float* __restrict__ transition_rates, state_word_t* __restrict__ state);
+
+extern "C" __global__ void simulate(int trajectories_count, int trajectory_limit,
+									state_word_t* __restrict__ last_states, float* __restrict__ last_times,
+									void* __restrict__ rands, state_word_t* __restrict__ trajectory_states,
+									float* __restrict__ trajectory_times,
+									float* __restrict__ trajectory_transition_entropies,
+									trajectory_status* __restrict__ trajectory_statuses)
+{
+	float transition_rates[state_size];
+
+	state_word_t state[state_words];
+
+	simulate_inner(trajectories_count, state_size, trajectory_limit, time_tick, max_time, discrete_time, last_states,
+				   last_times, rands, trajectory_states, trajectory_times, trajectory_transition_entropies,
+				   trajectory_statuses, transition_rates, state);
+}
+)";
 }
 
 void generator::generate_non_internal_index(std::ostringstream& os) const

@@ -39,8 +39,13 @@ private:
 	}
 };
 
-simulation_runner::simulation_runner(int n_trajectories, int state_words)
-	: n_trajectories_(n_trajectories), state_words_(state_words)
+simulation_runner::simulation_runner(int n_trajectories, int state_size, unsigned long long seed,
+									 std::vector<float> inital_probs)
+	: n_trajectories_(n_trajectories),
+	  state_size_(state_size),
+	  state_words_(DIV_UP(state_size, 32)),
+	  seed_(seed),
+	  inital_probs_(std::move(inital_probs))
 {
 	trajectory_batch_limit = std::min(1'000'000, n_trajectories);
 	trajectory_len_limit = 100; // TODO compute limit according to the available mem
@@ -54,6 +59,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 	thrust::device_ptr<state_word_t> d_last_states;
 	thrust::device_ptr<float> d_last_times;
 	thrust::device_ptr<curandState> d_rands;
+	thrust::device_ptr<float> d_initial_probs;
 
 	thrust::device_ptr<state_word_t> d_traj_states;
 	thrust::device_ptr<float> d_traj_times;
@@ -66,6 +72,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 		d_last_states = thrust::device_malloc<state_word_t>(trajectory_batch_limit * state_words_);
 		d_last_times = thrust::device_malloc<float>(trajectory_batch_limit);
 		d_rands = thrust::device_malloc<curandState>(trajectory_batch_limit);
+		d_initial_probs = thrust::device_malloc<float>(inital_probs_.size());
 
 		d_traj_states =
 			thrust::device_malloc<state_word_t>(trajectory_batch_limit * trajectory_len_limit * state_words_);
@@ -78,15 +85,17 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 	{
 		timer_stats stats("simulation_runner> initialize");
 
-		initialize_random.run(dim3(DIV_UP(trajectory_batch_limit, 256)), dim3(256), trajectory_batch_limit,
+		CUDA_CHECK(cudaMemcpy(d_initial_probs.get(), inital_probs_.data(), inital_probs_.size() * sizeof(float),
+							  cudaMemcpyHostToDevice));
+
+		initialize_random.run(dim3(DIV_UP(trajectory_batch_limit, 256)), dim3(256), trajectory_batch_limit, seed_,
 							  d_rands.get());
 
 		initialize_initial_state.run(dim3(DIV_UP(trajectory_batch_limit, 256)), dim3(256), trajectory_batch_limit,
-									 d_last_states.get(), d_last_times.get(), d_rands.get());
+									 state_size_, d_initial_probs.get(), d_last_states.get(), d_last_times.get(),
+									 d_rands.get());
 
 		CUDA_CHECK(cudaMemset(d_traj_times.get(), 0, trajectory_batch_limit * trajectory_len_limit * sizeof(float)));
-
-		CUDA_CHECK(cudaDeviceSynchronize());
 	}
 
 	int trajectories_in_batch = std::min(n_trajectories_, trajectory_batch_limit);
@@ -138,11 +147,10 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 
 				if (new_batch_addition)
 				{
-					initialize_initial_state.run(dim3(DIV_UP(new_batch_addition, 256)), dim3(256), new_batch_addition,
-												 d_last_states.get() + trajectories_in_batch * state_words_,
-												 d_last_times.get() + trajectories_in_batch,
-												 d_rands.get() + trajectories_in_batch);
-
+					initialize_initial_state.run(
+						dim3(DIV_UP(new_batch_addition, 256)), dim3(256), new_batch_addition, state_size_,
+						d_initial_probs.get(), d_last_states.get() + trajectories_in_batch * state_words_,
+						d_last_times.get() + trajectories_in_batch, d_rands.get() + trajectories_in_batch);
 
 					trajectories_in_batch += new_batch_addition;
 					n_trajectories_ -= new_batch_addition;
@@ -164,6 +172,7 @@ void simulation_runner::run_simulation(stats_composite& stats_runner, kernel_wra
 	thrust::device_free(d_last_states);
 	thrust::device_free(d_last_times);
 	thrust::device_free(d_rands);
+	thrust::device_free(d_initial_probs);
 	thrust::device_free(d_traj_states);
 	thrust::device_free(d_traj_times);
 	thrust::device_free(d_traj_tr_entropies);

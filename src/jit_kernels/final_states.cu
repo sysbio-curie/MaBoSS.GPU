@@ -1,6 +1,6 @@
 
-__global__ void final_states(int n_trajectories, const state_word_t* __restrict__ last_states,
-							 const trajectory_status* __restrict__ traj_statuses, int* __restrict__ results)
+extern "C" __global__ void final_states(int n_trajectories, const state_word_t* __restrict__ last_states,
+										const trajectory_status* __restrict__ traj_statuses, int* __restrict__ results)
 {
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
 	if (tid >= n_trajectories)

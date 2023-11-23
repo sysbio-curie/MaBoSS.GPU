@@ -1,6 +1,12 @@
 #include <curand_kernel.h>
 
-__device__ int select_flip_bit(const float* __restrict__ transition_rates, float total_rate,
+using uint8_t = unsigned char;
+using uint32_t = unsigned int;
+
+#include "../state_word.h"
+#include "../trajectory_status.h"
+
+__device__ int select_flip_bit(int state_size, const float* __restrict__ transition_rates, float total_rate,
 							   curandState* __restrict__ rand)
 {
 	float r = curand_uniform(rand) * total_rate;
@@ -14,7 +20,8 @@ __device__ int select_flip_bit(const float* __restrict__ transition_rates, float
 	return state_size - 1;
 }
 
-__global__ void initialize_random(int trajectories_count, curandState* __restrict__ rands)
+extern "C" __global__ void initialize_random(int trajectories_count, unsigned long long seed,
+											 curandState* __restrict__ rands)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
@@ -24,48 +31,65 @@ __global__ void initialize_random(int trajectories_count, curandState* __restric
 	curand_init(seed, id, 0, rands + id);
 }
 
-__global__ void initialize_initial_state(int trajectories_count, state_word_t* __restrict__ states,
-										 float* __restrict__ times, curandState* __restrict__ rands)
+extern "C" __global__ void initialize_initial_state(int trajectories_count, int state_size,
+													const float* __restrict__ initial_probs,
+													state_word_t* __restrict__ states, float* __restrict__ times,
+													curandState* __restrict__ rands)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
 		return;
 
+	constexpr int word_size = sizeof(state_word_t) * 8;
+	int state_words = (state_size + word_size - 1) / word_size;
+
 	// initialize state
-	state_word_t s[state_words] = { 0 };
 	{
+		state_word_t s = 0;
+
 		// randomly set free vars
 		for (int i = 0; i < state_size; i++)
 		{
 			if (curand_uniform(rands + id) <= initial_probs[i])
-				s[i / word_size] |= 1 << (i % word_size);
+				s |= 1 << (i % word_size);
 			else
-				s[i / word_size] &= ~(1 << (i % word_size));
-		}
-	}
+				s &= ~(1 << (i % word_size));
 
-	for (int i = 0; i < state_words; i++)
-		states[id * state_words + i] = s[i];
+			if (i % word_size == word_size - 1)
+			{
+				states[id * state_words + i / word_size] = s;
+				s = 0;
+			}
+		}
+
+		if (state_size % word_size != 0)
+			states[id * state_words + state_words - 1] = s;
+	}
 
 	// set time to zero
 	times[id] = 0.f;
 }
 
-__global__ void simulate(int trajectories_count, int trajectory_limit, state_word_t* __restrict__ last_states,
-						 float* __restrict__ last_times, curandState* __restrict__ rands,
-						 state_word_t* __restrict__ trajectory_states, float* __restrict__ trajectory_times,
-						 float* __restrict__ trajectory_transition_entropies,
-						 trajectory_status* __restrict__ trajectory_statuses)
+extern __device__ float compute_transition_rates(float* __restrict__ transition_rates,
+												 const state_word_t* __restrict__ state);
+extern __device__ float compute_transition_entropy(const float* __restrict__ transition_rates);
+
+__device__ void simulate_inner(int trajectories_count, int state_size, int trajectory_limit, float time_tick,
+							   float max_time, bool discrete_time, state_word_t* __restrict__ last_states,
+							   float* __restrict__ last_times, void* __restrict__ rands_v,
+							   state_word_t* __restrict__ trajectory_states, float* __restrict__ trajectory_times,
+							   float* __restrict__ trajectory_transition_entropies,
+							   trajectory_status* __restrict__ trajectory_statuses,
+							   float* __restrict__ transition_rates, state_word_t* __restrict__ state)
 {
+	curandState* __restrict__ rands = reinterpret_cast<curandState*>(rands_v);
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 	if (id >= trajectories_count)
 		return;
 
-	float transition_rates[state_size];
+	constexpr int word_size = sizeof(state_word_t) * 8;
+	int state_words = (state_size + word_size - 1) / word_size;
 
-	// Initialize thread variables
-	state_word_t state[state_words];
-#pragma unroll
 	for (int i = 0; i < state_words; i++)
 		state[i] = last_states[id * state_words + i];
 	curandState rand = rands[id];
@@ -94,7 +118,7 @@ __global__ void simulate(int trajectories_count, int trajectory_limit, state_wor
 		}
 		else
 		{
-			if constexpr (discrete_time)
+			if (discrete_time)
 				time += time_tick;
 			else
 				time += -logf(curand_uniform(&rand)) / total_rate;
@@ -105,7 +129,6 @@ __global__ void simulate(int trajectories_count, int trajectory_limit, state_wor
 			transition_entropy = compute_transition_entropy(transition_rates);
 		}
 
-#pragma unroll
 		for (int i = 0; i < state_words; i++)
 			trajectory_states[step * state_words + i] = state[i];
 		trajectory_times[step] = time;
@@ -115,13 +138,12 @@ __global__ void simulate(int trajectories_count, int trajectory_limit, state_wor
 		if (time >= max_time || step >= trajectory_limit)
 			break;
 
-		int flip_bit = select_flip_bit(transition_rates, total_rate, &rand);
+		int flip_bit = select_flip_bit(state_size, transition_rates, total_rate, &rand);
 		state[flip_bit / word_size] ^= 1 << (flip_bit % word_size);
 	}
 
 	// save thread variables
 	{
-#pragma unroll
 		for (int i = 0; i < state_words; i++)
 			last_states[id * state_words + i] = state[i];
 		rands[id] = rand;

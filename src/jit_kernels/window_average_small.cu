@@ -1,7 +1,10 @@
 
-__global__ void window_average_small(int max_traj_len, int n_trajectories, const state_word_t* __restrict__ traj_states,
-									 const float* __restrict__ traj_times, const float* __restrict__ traj_tr_entropies,
-									 float* __restrict__ window_probs, float* __restrict__ window_tr_entropies)
+extern "C" __global__ void window_average_small(int max_traj_len, int n_trajectories,
+												const state_word_t* __restrict__ traj_states,
+												const float* __restrict__ traj_times,
+												const float* __restrict__ traj_tr_entropies,
+												float* __restrict__ window_probs,
+												float* __restrict__ window_tr_entropies)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -34,11 +37,12 @@ __global__ void window_average_small(int max_traj_len, int n_trajectories, const
 	}
 }
 
-__global__ void window_average_small_discrete(int max_traj_len, int n_trajectories,
-											  const state_word_t* __restrict__ traj_states,
-											  const float* __restrict__ traj_times,
-											  const float* __restrict__ traj_tr_entropies,
-											  int* __restrict__ window_probs, float* __restrict__ window_tr_entropies)
+extern "C" __global__ void window_average_small_discrete(int max_traj_len, int n_trajectories,
+														 const state_word_t* __restrict__ traj_states,
+														 const float* __restrict__ traj_times,
+														 const float* __restrict__ traj_tr_entropies,
+														 int* __restrict__ window_probs,
+														 float* __restrict__ window_tr_entropies)
 {
 	auto id = blockIdx.x * blockDim.x + threadIdx.x;
 
