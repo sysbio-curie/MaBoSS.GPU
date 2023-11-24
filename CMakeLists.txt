@@ -31,13 +31,13 @@ add_custom_target(make-jit-inc-dir ALL
 add_custom_target(make-jit-fat-dir ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${JIT_FATBIN_PATH})
 
+find_package(FLEX REQUIRED)
+FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
+            DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)
+
 find_package(BISON REQUIRED)
 BISON_TARGET(maboss_parser src/parser/parser.yy ${PARSER_GENERATED_PATH}/parser.cpp
              DEFINES_FILE ${PARSER_GENERATED_PATH}/parser.h)
-
-find_package(FLEX REQUIRED)
-FLEX_TARGET(maboss_parser src/parser/scanner.ll ${PARSER_GENERATED_PATH}/scanner.cpp
-            DEFINES_FILE ${PARSER_GENERATED_PATH}/scanner.h)   
 
 set(JIT_INCLUDE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/trajectory_status.h 
                       ${CMAKE_CURRENT_SOURCE_DIR}/src/state_word.h)
@@ -89,7 +89,7 @@ add_compile_definitions(CUDA_CC="${CUDA_ARCH_LIST}")
 file(GLOB_RECURSE src_files "src/*")
 list(FILTER src_files EXCLUDE REGEX ".*main\\..*")
 list(FILTER src_files EXCLUDE REGEX ".*jit_kernels.*")
-add_library(MaBoSSGCore ${src_files} ${BISON_MyParser_OUTPUTS} ${FLEX_MyParser_OUTPUTS})
+add_library(MaBoSSGCore ${src_files} ${FLEX_maboss_parser_OUTPUTS} ${BISON_maboss_parser_OUTPUTS})
 target_include_directories(MaBoSSGCore PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${jitify_SOURCE_DIR})
 target_link_libraries(MaBoSSGCore PUBLIC cuda cudart nvrtc nvJitLink)
 add_dependencies(MaBoSSGCore jit_generated)
