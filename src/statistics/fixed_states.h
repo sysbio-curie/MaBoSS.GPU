@@ -19,6 +19,8 @@ class fixed_states_stats : public stats
 	int* d_unique_states_count_ = nullptr;
 
 public:
+	~fixed_states_stats();
+
 	void initialize_temp_storage(thrust::device_ptr<static_state_t<state_words>> last_states,
 								 thrust::device_ptr<trajectory_status> traj_statuses, int n_trajectories);
 

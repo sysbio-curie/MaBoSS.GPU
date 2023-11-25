@@ -31,6 +31,19 @@ struct compare_ftor
 };
 
 template <int state_words>
+fixed_states_stats<state_words>::~fixed_states_stats()
+{
+	if (d_tmp_storage_ == nullptr)
+		return;
+
+	CUDA_CHECK(cudaFree(d_tmp_storage_));
+	CUDA_CHECK(cudaFree(d_out_num));
+	CUDA_CHECK(cudaFree(d_fixed_copy_));
+	CUDA_CHECK(cudaFree(d_unique_states_));
+	CUDA_CHECK(cudaFree(d_unique_states_count_));
+}
+
+template <int state_words>
 void fixed_states_stats<state_words>::initialize_temp_storage(
 	thrust::device_ptr<static_state_t<state_words>> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
 	int n_trajectories)
