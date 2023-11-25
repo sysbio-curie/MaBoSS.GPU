@@ -41,7 +41,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	operation op;
 	expr_ptr expr;
 };
@@ -53,7 +52,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	operation op;
 	expr_ptr left;
 	expr_ptr right;
@@ -66,7 +64,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	expr_ptr left;
 	expr_ptr middle;
 	expr_ptr right;
@@ -79,7 +76,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	expr_ptr expr;
 };
 
@@ -90,7 +86,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	float value;
 };
 
@@ -101,7 +96,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	std::string name;
 };
 
@@ -112,7 +106,6 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	std::string name;
 };
 
@@ -123,6 +116,5 @@ public:
 	float evaluate(const driver& drv) const override;
 	void generate_code(const driver& drv, const std::string& current_node, std::ostream& os) const override;
 
-protected:
 	std::string name;
 };

@@ -106,12 +106,12 @@ void binary_expression::generate_code(const driver& drv, const std::string& curr
 			break;
 		case operation::AND:
 			left->generate_code(drv, current_node, os);
-			os << " && ";
+			os << " & ";
 			right->generate_code(drv, current_node, os);
 			break;
 		case operation::OR:
 			left->generate_code(drv, current_node, os);
-			os << " || ";
+			os << " | ";
 			right->generate_code(drv, current_node, os);
 			break;
 		case operation::EQ:

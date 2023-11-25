@@ -54,6 +54,33 @@ std::string generator::generate_code() const
 	return ss.str();
 }
 
+bool is_logic_ternary_expression(const driver& drv, const expression* expr, bool up, float& val)
+{
+	const ternary_expression* ternary_expr = dynamic_cast<const ternary_expression*>(expr);
+
+	if (!ternary_expr)
+		return false;
+
+	const alias_expression* alias_expr = dynamic_cast<const alias_expression*>(ternary_expr->left.get());
+
+	if (!alias_expr)
+		return false;
+
+	if (alias_expr->name != "@logic")
+		return false;
+
+	auto l_val = ternary_expr->middle->evaluate(drv);
+	auto r_val = ternary_expr->right->evaluate(drv);
+
+	auto zero = up ? r_val : l_val;
+	val = up ? l_val : r_val;
+
+	if (zero != 0.f)
+		return false;
+
+	return true;
+}
+
 void generator::generate_node_transitions(std::ostringstream& os) const
 {
 	for (auto&& node : drv_.nodes)
@@ -61,15 +88,35 @@ void generator::generate_node_transitions(std::ostringstream& os) const
 		os << "__device__ float " << node.name << "_rate(const state_word_t* __restrict__ state) " << std::endl;
 		os << "{" << std::endl;
 
-		os << "    return ";
-		identifier_expression(node.name).generate_code(drv_, node.name, os);
-		os << " ?" << std::endl;
-		os << "          (";
-		node.get_attr("rate_down").second->generate_code(drv_, node.name, os);
-		os << ")" << std::endl;
-		os << "        : (";
-		node.get_attr("rate_up").second->generate_code(drv_, node.name, os);
-		os << ");" << std::endl;
+		float up_val, down_val;
+
+		if (is_logic_ternary_expression(drv_, node.get_attr("rate_up").second.get(), true, up_val)
+			&& is_logic_ternary_expression(drv_, node.get_attr("rate_down").second.get(), false, down_val))
+		{
+			os << "    const bool is_up = ";
+			identifier_expression(node.name).generate_code(drv_, node.name, os);
+			os << ";" << std::endl;
+			os << "    const bool logic = ";
+			node.get_attr("logic").second->generate_code(drv_, node.name, os);
+			os << ";" << std::endl;
+
+			if (up_val == down_val)
+				os << "    return is_up == logic ? 0 : " << up_val << ";" << std::endl;
+			else
+				os << "    return is_up == logic ? 0 : (is_up ? " << down_val << " : " << up_val << ");" << std::endl;
+		}
+		else
+		{
+			os << "    return ";
+			identifier_expression(node.name).generate_code(drv_, node.name, os);
+			os << " ?" << std::endl;
+			os << "          (";
+			node.get_attr("rate_down").second->generate_code(drv_, node.name, os);
+			os << ")" << std::endl;
+			os << "        : (";
+			node.get_attr("rate_up").second->generate_code(drv_, node.name, os);
+			os << ");" << std::endl;
+		}
 		os << "}" << std::endl << std::endl;
 	}
 }
