@@ -2,7 +2,6 @@
 
 #include <fstream>
 
-#include <thrust/copy.h>
 #include <thrust/device_free.h>
 #include <thrust/device_malloc.h>
 
@@ -47,7 +46,8 @@ void final_states_stats::finalize()
 {
 	timer_stats stats("final_states_stats> finalize");
 
-	thrust::copy(occurences_, occurences_ + noninternal_states_count_, result_occurences_.begin());
+	CUDA_CHECK(cudaMemcpy(result_occurences_.data(), occurences_.get(), noninternal_states_count_ * sizeof(int),
+						  cudaMemcpyDeviceToHost));
 }
 
 void final_states_stats::visualize(int n_trajectories, const std::vector<std::string>& nodes)
