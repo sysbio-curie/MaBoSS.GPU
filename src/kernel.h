@@ -13,4 +13,12 @@ struct kernel_wrapper
 		CU_CHECK(cuLaunchKernel(kernel, grid_size.x, grid_size.y, grid_size.z, block_size.x, block_size.y, block_size.z,
 								0, 0, void_args, 0));
 	}
+
+	template <typename... Args>
+	void run_shared(dim3 grid_size, dim3 block_size, int shared_bytes, Args... args)
+	{
+		void* void_args[sizeof...(Args)] = { &args... };
+		CU_CHECK(cuLaunchKernel(kernel, grid_size.x, grid_size.y, grid_size.z, block_size.x, block_size.y, block_size.z,
+								shared_bytes, 0, void_args, 0));
+	}
 };

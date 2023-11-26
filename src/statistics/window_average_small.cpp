@@ -68,11 +68,24 @@ void window_average_small_stats::process_batch_internal(thrust::device_ptr<state
 {
 	timer_stats stats("window_average_small> process_batch");
 
-	window_average_small_.run(dim3(DIV_UP(max_traj_len_ * n_trajectories, 512)), dim3(512), max_traj_len_,
-							  n_trajectories, (int)noninternals_mask_.words_n(), noninternal_states_count_,
-							  window_size_, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
-							  discrete_time_ ? (void*)window_probs_discrete_.get() : (void*)window_probs_.get(),
-							  window_tr_entropies_.get());
+	int windows_count = std::ceil(max_time_ / window_size_);
+	int shared_mem_size = sizeof(float) * windows_count;
+
+	bool extra_shared_mem = false;
+
+	assert(sizeof(float) == sizeof(int));
+
+	if (shared_mem_size + sizeof(float) * noninternal_states_count_ * windows_count < 10 * 1024)
+	{
+		shared_mem_size += sizeof(float) * noninternal_states_count_ * windows_count;
+		extra_shared_mem = true;
+	}
+
+	window_average_small_.run_shared(
+		dim3(DIV_UP(n_trajectories * (max_traj_len_ - 1), 256)), dim3(256), shared_mem_size, max_traj_len_,
+		n_trajectories, (int)noninternals_mask_.words_n(), noninternal_states_count_, window_size_, windows_count,
+		extra_shared_mem, traj_states.get(), traj_times.get(), traj_tr_entropies.get(),
+		discrete_time_ ? (void*)window_probs_discrete_.get() : (void*)window_probs_.get(), window_tr_entropies_.get());
 }
 
 void window_average_small_stats::finalize()

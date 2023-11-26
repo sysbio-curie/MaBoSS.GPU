@@ -119,7 +119,12 @@ __device__ void simulate_inner(int trajectories_count, int state_size, int traje
 		else
 		{
 			if (discrete_time)
+			{
 				time += time_tick;
+				// due to a common rounding error for discrete simulations,
+				// we set time to max_time explicitely if it is close enough to max_time
+				time = max_time - time_tick < time ? max_time : time;
+			}
 			else
 				time += -logf(curand_uniform(&rand)) / total_rate;
 
