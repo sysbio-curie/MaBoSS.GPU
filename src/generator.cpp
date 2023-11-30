@@ -217,7 +217,7 @@ void generator::generate_non_internal_index(std::ostringstream& os) const
 	{
 		if (!drv_.nodes[i].is_internal(drv_))
 		{
-			os << "((state[" << i / 32 << "] & (1u << " << i % 32 << ")) >> " << (i % 32) - non_internals++ << ")";
+			os << "((state[" << i / 32 << "] & " << (1u << i % 32) << "u) >> " << (i % 32) - non_internals++ << ")";
 			if (non_internals != non_internals_count)
 			{
 				os << " | ";
