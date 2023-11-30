@@ -1,7 +1,6 @@
 #include "window_average_small.h"
 
 #include <cmath>
-#include <device_launch_parameters.h>
 #include <fstream>
 
 #include <thrust/device_free.h>
@@ -85,13 +84,13 @@ void window_average_small_stats::finalize()
 
 	// copy result data into host
 	if (discrete_time_)
-		CUDA_CHECK(cudaMemcpy(result_probs_discrete_.data(), thrust::raw_pointer_cast(window_probs_discrete_),
+		CUDA_CHECK(cudaMemcpy(result_probs_discrete_.data(), window_probs_discrete_.get(),
 							  windows_count * noninternal_states_count_ * sizeof(int), cudaMemcpyDeviceToHost));
 	else
-		CUDA_CHECK(cudaMemcpy(result_probs_.data(), thrust::raw_pointer_cast(window_probs_),
+		CUDA_CHECK(cudaMemcpy(result_probs_.data(), window_probs_.get(),
 							  windows_count * noninternal_states_count_ * sizeof(float), cudaMemcpyDeviceToHost));
-	CUDA_CHECK(cudaMemcpy(result_tr_entropies_.data(), thrust::raw_pointer_cast(window_tr_entropies_),
-						  windows_count * sizeof(float), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(result_tr_entropies_.data(), window_tr_entropies_.get(), windows_count * sizeof(float),
+						  cudaMemcpyDeviceToHost));
 }
 
 state_t window_average_small_stats::non_internal_idx_to_state(const state_t& noninternals_mask, int idx)

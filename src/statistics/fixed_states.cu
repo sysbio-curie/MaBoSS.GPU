@@ -1,50 +1,116 @@
 #include <fstream>
 
-#include <thrust/copy.h>
-#include <thrust/count.h>
-#include <thrust/device_vector.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/reduce.h>
-#include <thrust/sort.h>
-#include <thrust/unique.h>
+#include <cub/device/device_merge_sort.cuh>
+#include <cub/device/device_run_length_encode.cuh>
+#include <cub/device/device_select.cuh>
+#include <cub/iterator/transform_input_iterator.cuh>
 
 #include "../timer.h"
+#include "../utils.h"
 #include "fixed_states.h"
+
+struct select_ftor
+{
+	__device__ __forceinline__ bool operator()(trajectory_status t) const
+	{
+		return t == trajectory_status::FIXED_POINT;
+	}
+};
+
+template <int state_words>
+struct compare_ftor
+{
+	__device__ __forceinline__ bool operator()(const static_state_t<state_words>& lhs,
+											   const static_state_t<state_words>& rhs) const
+	{
+		for (int i = state_words - 1; i >= 0; i--)
+			if (lhs.data[i] != rhs.data[i])
+				return lhs.data[i] < rhs.data[i];
+		return false;
+	}
+};
+
+template <int state_words>
+fixed_states_stats<state_words>::~fixed_states_stats()
+{
+	if (d_tmp_storage_ == nullptr)
+		return;
+
+	CUDA_CHECK(cudaFree(d_tmp_storage_));
+	CUDA_CHECK(cudaFree(d_out_num));
+	CUDA_CHECK(cudaFree(d_fixed_copy_));
+	CUDA_CHECK(cudaFree(d_unique_states_));
+	CUDA_CHECK(cudaFree(d_unique_states_count_));
+}
+
+template <int state_words>
+void fixed_states_stats<state_words>::initialize_temp_storage(
+	thrust::device_ptr<static_state_t<state_words>> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
+	int n_trajectories)
+{
+	if (d_tmp_storage_ != nullptr)
+	{
+		return;
+	}
+
+	timer_stats stats("fixed_states_stats> initialize");
+
+	size_t temp_storage_bytes_if = 0;
+	cub::DeviceSelect::Flagged(
+		d_tmp_storage_, tmp_storage_bytes_, last_states.get(),
+		cub::TransformInputIterator<bool, select_ftor, trajectory_status*>(traj_statuses.get(), select_ftor()),
+		d_fixed_copy_, d_out_num, n_trajectories);
+
+	std::size_t temp_storage_bytes_sort = 0;
+	cub::DeviceMergeSort::SortKeys(d_tmp_storage_, temp_storage_bytes_sort, d_fixed_copy_, n_trajectories,
+								   compare_ftor<state_words>());
+
+	size_t temp_storage_bytes_encode = 0;
+	cub::DeviceRunLengthEncode::Encode(d_tmp_storage_, tmp_storage_bytes_, d_fixed_copy_, d_unique_states_,
+									   d_unique_states_count_, d_out_num, n_trajectories);
+
+	tmp_storage_bytes_ = std::max(std::max(temp_storage_bytes_if, temp_storage_bytes_encode), temp_storage_bytes_sort);
+
+	CUDA_CHECK(cudaMalloc(&d_tmp_storage_, tmp_storage_bytes_));
+	CUDA_CHECK(cudaMalloc(&d_out_num, sizeof(int)));
+	CUDA_CHECK(cudaMalloc(&d_fixed_copy_, n_trajectories * sizeof(static_state_t<state_words>)));
+	CUDA_CHECK(cudaMalloc(&d_unique_states_, n_trajectories * sizeof(static_state_t<state_words>)));
+	CUDA_CHECK(cudaMalloc(&d_unique_states_count_, n_trajectories * sizeof(int)));
+}
 
 template <int state_words>
 void fixed_states_stats<state_words>::process_batch_internal(
 	thrust::device_ptr<static_state_t<state_words>> last_states, thrust::device_ptr<trajectory_status> traj_statuses,
 	int n_trajectories)
 {
+	initialize_temp_storage(last_states, traj_statuses, n_trajectories);
+
 	timer_stats stats("fixed_states_stats> process_batch");
 
-	auto fp_pred = [] __device__(trajectory_status t) { return t == trajectory_status::FIXED_POINT; };
+	cub::DeviceSelect::Flagged(
+		d_tmp_storage_, tmp_storage_bytes_, last_states.get(),
+		cub::TransformInputIterator<bool, select_ftor, trajectory_status*>(traj_statuses.get(), select_ftor()),
+		d_fixed_copy_, d_out_num, n_trajectories);
 
-	size_t finished_trajs_size = thrust::count_if(traj_statuses, traj_statuses + n_trajectories, fp_pred);
+	int fixed_count = 0;
+	CUDA_CHECK(cudaMemcpy(&fixed_count, d_out_num, sizeof(int), cudaMemcpyDeviceToHost));
 
-	if (finished_trajs_size == 0)
-		return;
+	cub::DeviceMergeSort::SortKeys(d_tmp_storage_, tmp_storage_bytes_, d_fixed_copy_, fixed_count,
+								   compare_ftor<state_words>());
 
-	thrust::device_vector<static_state_t<state_words>> final_states(finished_trajs_size);
+	cub::DeviceRunLengthEncode::Encode(d_tmp_storage_, tmp_storage_bytes_, d_fixed_copy_, d_unique_states_,
+									   d_unique_states_count_, d_out_num, fixed_count);
 
-	thrust::copy_if(last_states, last_states + n_trajectories, traj_statuses, final_states.begin(), fp_pred);
-
-	thrust::sort(final_states.begin(), final_states.end());
-
-	size_t unique_fixed_points_size = thrust::unique_count(final_states.begin(), final_states.end());
-
-	thrust::device_vector<static_state_t<state_words>> unique_fixed_points(unique_fixed_points_size);
-	thrust::device_vector<int> unique_fixed_points_count(unique_fixed_points_size);
-
-	thrust::reduce_by_key(final_states.begin(), final_states.end(), thrust::make_constant_iterator(1),
-						  unique_fixed_points.begin(), unique_fixed_points_count.begin());
+	int unique_fixed_points_size = 0;
+	CUDA_CHECK(cudaMemcpy(&unique_fixed_points_size, d_out_num, sizeof(int), cudaMemcpyDeviceToHost));
 
 	std::vector<static_state_t<state_words>> h_unique_fixed_points(unique_fixed_points_size);
 	std::vector<int> h_unique_fixed_points_count(unique_fixed_points_size);
 
-	thrust::copy(unique_fixed_points.begin(), unique_fixed_points.end(), h_unique_fixed_points.begin());
-	thrust::copy(unique_fixed_points_count.begin(), unique_fixed_points_count.end(),
-				 h_unique_fixed_points_count.begin());
+	CUDA_CHECK(cudaMemcpy(h_unique_fixed_points.data(), d_unique_states_,
+						  unique_fixed_points_size * sizeof(static_state_t<state_words>), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(h_unique_fixed_points_count.data(), d_unique_states_count_,
+						  unique_fixed_points_size * sizeof(int), cudaMemcpyDeviceToHost));
 
 	for (size_t i = 0; i < unique_fixed_points_size; i++)
 	{
