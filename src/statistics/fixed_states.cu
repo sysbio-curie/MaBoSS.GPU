@@ -114,12 +114,10 @@ void fixed_states_stats<state_words>::process_batch_internal(
 
 	for (size_t i = 0; i < unique_fixed_points_size; i++)
 	{
-		auto it = result_.find(h_unique_fixed_points[i]);
+		auto [it, emplaced] = result_.try_emplace(h_unique_fixed_points[i], h_unique_fixed_points_count[i]);
 
-		if (it != result_.end())
-			result_[h_unique_fixed_points[i]] += h_unique_fixed_points_count[i];
-		else
-			result_[h_unique_fixed_points[i]] = h_unique_fixed_points_count[i];
+		if (!emplaced)
+			it->second += h_unique_fixed_points_count[i];
 	}
 }
 

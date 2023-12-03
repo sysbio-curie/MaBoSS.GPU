@@ -15,7 +15,7 @@ __device__ int select_flip_bit(int state_size, const float* __restrict__ transit
 	for (int i = 0; i < state_size; i++)
 	{
 		sum += transition_rates[i];
-		idx += (sum <= r) ? 1 : 0;
+		idx += (sum < r) ? 1 : 0;
 	}
 	return idx;
 }
