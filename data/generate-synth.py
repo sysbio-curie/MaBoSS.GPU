@@ -2,57 +2,42 @@ import numpy as np
 import argparse
 
 
-def generate_bnd(file_name, nodes_count):
+def generate_bnd(file_name, nodes_count, stripe_count):
+    node_strings = []
 
+    for i in range(nodes_count):
+        node_str = f"Node N{i} {{\n"
+        node_str += f"    logic = "
 
-    clause_count_max = int(np.sqrt(nodes_count))
-    clause_length_max = clause_count_max
+        up_nodes = []
+        down_nodes = []
 
-    clause_count_max = 5
-    clause_length_max = 2
+        for j in range(1, stripe_count + 1):
+            up_nodes.append(f"N{(i - j + nodes_count) % nodes_count}")
+            down_nodes.append(f"N{(i + j) % nodes_count}")
+        up_nodes.append(f"!N{(i - stripe_count - 1 + nodes_count) % nodes_count}")
+
+        node_str += (
+            f"(!N{i} & "
+            + " & ".join(up_nodes)
+            + f") | (!(N{i} & "
+            + " & ".join(down_nodes)
+            + f") & N{i})"
+        )
+
+        node_str += ";\n"
+        node_str += f"    rate_up = @logic ? $u_N{i} : 0;\n"
+        node_str += f"    rate_down = @logic ? 0 : $d_N{i};\n"
+
+        node_str += "}\n\n"
+
+        node_strings.append(node_str)
+
+    # shuffle nodes
+    np.random.shuffle(node_strings)
 
     with open(file_name, "w") as f:
-        for i in range(nodes_count - 2):
-            f.write(f"Node N{i} {{\n")
-            f.write(f"    logic = ")
-
-            clauses_count = np.random.randint(1, clause_count_max + 1)
-
-            clauses = []
-            for j in range(clauses_count):
-                clause_length = np.random.randint(1, clause_length_max + 1)
-                clause = np.random.choice(
-                    [f"N{k}" for k in range(nodes_count)], clause_length, replace=False
-                )
-                # add negation
-                for k in range(clause_length):
-                    if np.random.rand() < 0.5:
-                        clause[k] = f"!{clause[k]}"
-                clause = "(" + " & ".join(clause) + ")"
-                clauses.append(clause)
-
-            f.write("(" + " | ".join(clauses) + f") & !N{nodes_count - 1}")
-
-            f.write(";\n")
-            f.write(f"    rate_up = @logic ? $u_N{i} : 0;\n")
-            f.write(f"    rate_down = @logic ? 0 : $d_N{i};\n")
-
-            f.write("}\n\n")
-        
-        # last-1 node
-        f.write(f"Node N{nodes_count - 2} {{\n")
-        f.write(f"    logic = !N{nodes_count - 2} & !N{nodes_count - 1};\n")
-        f.write(f"    rate_up = @logic ? $u_N{nodes_count - 2} : 0;\n")
-        f.write(f"    rate_down = @logic ? 0 : $d_N{nodes_count - 2};\n")
-        f.write("}\n\n")
-        
-        # last node
-        f.write(f"Node N{nodes_count - 1} {{\n")
-        f.write(f"    logic = !N{nodes_count - 1};\n")
-        f.write(f"    rate_up = @logic ? $u_N{nodes_count - 1} : 0;\n")
-        f.write(f"    rate_down = @logic ? 0 : $d_N{nodes_count - 1};\n")
-        f.write("}\n\n")
-
+        f.write("".join(node_strings))
 
 
 def generate_cfg(
@@ -63,6 +48,8 @@ def generate_cfg(
     time_tick,
     max_time,
     discrete_time,
+    stripe_count,
+    internal_stride,
 ):
     with open(file_name, "w") as f:
         f.write(f"sample_count = {sample_count};\n")
@@ -70,19 +57,15 @@ def generate_cfg(
         f.write(f"max_time = {max_time};\n")
         f.write(f"discrete_time = {discrete_time};\n")
 
-        for i in range(nodes_count - 1):
+        for i in range(nodes_count):
             f.write(f"$u_N{i} = 1;\n")
             f.write(f"$d_N{i} = 1;\n")
-            f.write(f"N{i}.istate = 0;\n")
-            if i < noninternals_count:
+            f.write(f"N{i}.istate = {1 if i < stripe_count else 0};\n")
+            if i % internal_stride == 0 and noninternals_count > 0:
                 f.write(f"N{i}.is_internal = 0;\n")
+                noninternals_count -= 1
             else:
                 f.write(f"N{i}.is_internal = 1;\n")
-
-        f.write(f"$u_N{nodes_count - 1} = 0.01;\n")
-        f.write(f"$d_N{nodes_count - 1} = 0;\n")
-        f.write(f"N{nodes_count - 1}.istate = 0;\n")
-        f.write(f"N{nodes_count - 1}.is_internal = 1;\n")
 
 
 if __name__ == "__main__":
@@ -94,9 +77,27 @@ if __name__ == "__main__":
     parser.add_argument("--time_tick", type=int, default=5)
     parser.add_argument("--max_time", type=int, default=100)
     parser.add_argument("--discrete", action="store_true")
+    parser.add_argument(
+        "--formula_size",
+        type=int,
+        default=-1,
+        help="Number of nodes in each node's formula. If not assigned, it will be set to ~ 2 * sqrt(nodes)",
+    )
+    parser.add_argument(
+        "--continous_noninternals",
+        action="store_true",
+        help="Noninternals are continously distributed creating bigger pressure on windows computation",
+    )
     args = parser.parse_args()
 
-    generate_bnd(args.file_prefix + ".bnd", args.nodes)
+    stripe_count = (
+        args.formula_size // 2 if args.formula_size > 0 else int(np.sqrt(args.nodes))
+    )
+    internal_stride = (
+        1 if args.continous_noninternals else args.nodes // args.noninternals
+    )
+
+    generate_bnd(args.file_prefix + ".bnd", args.nodes, stripe_count)
     generate_cfg(
         args.file_prefix + ".cfg",
         args.nodes,
@@ -105,4 +106,6 @@ if __name__ == "__main__":
         args.time_tick,
         args.max_time,
         args.discrete,
+        stripe_count,
+        internal_stride,
     )
