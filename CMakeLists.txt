@@ -8,6 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+# Options
+if (NOT MAX_NODES)
+    set(MAX_NODES 512)
+endif()
+
+add_compile_definitions(MAX_NODES=${MAX_NODES})
+
 # Find CC of installed GPUs
 include(FindCUDA/select_compute_arch)
 CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)

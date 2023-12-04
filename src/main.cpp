@@ -35,40 +35,6 @@ std::vector<float> create_initial_probs(driver& drv)
 	return initial_probs;
 }
 
-void add_fixed_states_stats(stats_composite& stats_runner, int state_words)
-{
-	switch (state_words)
-	{
-		case 1:
-			stats_runner.add(std::make_unique<fixed_states_stats<1>>());
-			break;
-		case 2:
-			stats_runner.add(std::make_unique<fixed_states_stats<2>>());
-			break;
-		case 3:
-			stats_runner.add(std::make_unique<fixed_states_stats<3>>());
-			break;
-		case 4:
-			stats_runner.add(std::make_unique<fixed_states_stats<4>>());
-			break;
-		case 5:
-			stats_runner.add(std::make_unique<fixed_states_stats<5>>());
-			break;
-		case 6:
-			stats_runner.add(std::make_unique<fixed_states_stats<6>>());
-			break;
-		case 7:
-			stats_runner.add(std::make_unique<fixed_states_stats<7>>());
-			break;
-		case 8:
-			stats_runner.add(std::make_unique<fixed_states_stats<8>>());
-			break;
-		default:
-			assert(false);
-			break;
-	}
-}
-
 int do_compilation(driver& drv, bool discrete_time, std::optional<kernel_compiler>& compiler)
 {
 	timer_stats stats("main> compilation");
@@ -100,7 +66,7 @@ stats_composite do_simulation(bool discrete_time, float max_time, float time_tic
 		std::make_unique<final_states_stats>(noninternals_mask, noninternals_count, compiler.final_states));
 
 	// for fixed states
-	add_fixed_states_stats(stats_runner, noninternals_mask.words_n());
+	fixed_states_stats_builder::add_fixed_states_stats(stats_runner, noninternals_mask.words_n());
 
 	// for window averages
 	stats_runner.add(std::make_unique<window_average_small_stats>(
@@ -179,9 +145,9 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (drv.nodes.size() > 256)
+	if (drv.nodes.size() > MAX_NODES)
 	{
-		std::cerr << "This executable supports a maximum of 256 nodes." << std::endl;
+		std::cerr << "This executable supports a maximum of " << MAX_NODES << " nodes." << std::endl;
 		return 1;
 	}
 

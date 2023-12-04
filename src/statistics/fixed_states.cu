@@ -8,6 +8,9 @@
 #include "../timer.h"
 #include "../utils.h"
 #include "fixed_states.h"
+#include "stats_composite.h"
+
+constexpr size_t MAX_WORDS = DIV_UP(MAX_NODES, 32);
 
 struct select_ftor
 {
@@ -183,11 +186,24 @@ void fixed_states_stats<state_words>::write_csv(int n_trajectories, const std::v
 	}
 }
 
-template class fixed_states_stats<1>;
-template class fixed_states_stats<2>;
-template class fixed_states_stats<3>;
-template class fixed_states_stats<4>;
-template class fixed_states_stats<5>;
-template class fixed_states_stats<6>;
-template class fixed_states_stats<7>;
-template class fixed_states_stats<8>;
+template <int n>
+void add_fixed_states_stats_internal(stats_composite& stats_runner, int state_words)
+{
+	if constexpr (n > MAX_WORDS)
+	{
+		throw std::runtime_error("too many words");
+	}
+	else if (n == state_words)
+	{
+		stats_runner.add(std::make_unique<fixed_states_stats<n>>());
+	}
+	else
+	{
+		add_fixed_states_stats_internal<n + 1>(stats_runner, state_words);
+	}
+}
+
+void fixed_states_stats_builder::add_fixed_states_stats(stats_composite& stats_runner, int state_words)
+{
+	add_fixed_states_stats_internal<1>(stats_runner, state_words);
+}

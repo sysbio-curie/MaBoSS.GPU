@@ -5,6 +5,8 @@
 #include "../state.h"
 #include "stats.h"
 
+class stats_composite;
+
 template <int state_words>
 class fixed_states_stats : public stats
 {
@@ -34,4 +36,10 @@ public:
 	void visualize(int n_trajectories, const std::vector<std::string>& nodes) override;
 
 	void write_csv(int n_trajectories, const std::vector<std::string>& nodes, const std::string& prefix) override;
+};
+
+class fixed_states_stats_builder
+{
+public:
+	static void add_fixed_states_stats(stats_composite& stats_runner, int state_words);
 };
