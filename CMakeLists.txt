@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(MaBoSSG VERSION 0.1 LANGUAGES CUDA CXX C)
+project(MaBoSS.GPU VERSION 0.1 LANGUAGES CUDA CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -108,7 +108,7 @@ add_dependencies(MaBoSSGCore jit_generated)
 ### Target MaBoSSGCore ###
 
 
-### Target unit_MaBoSSG ###
+### Target unit_MaBoSS.GPU ###
 
 include(FetchContent)
 FetchContent_Declare(
@@ -120,33 +120,33 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 file(GLOB_RECURSE test_files "test/*")
-add_executable(unit_MaBoSSG ${test_files})
+add_executable(unit_MaBoSS.GPU ${test_files})
 
-target_link_libraries(unit_MaBoSSG PRIVATE
+target_link_libraries(unit_MaBoSS.GPU PRIVATE
 	gtest_main gmock_main MaBoSSGCore)
 
-target_include_directories(unit_MaBoSSG PUBLIC
+target_include_directories(unit_MaBoSS.GPU PUBLIC
 	"src")
 
-add_custom_command(TARGET unit_MaBoSSG POST_BUILD
+add_custom_command(TARGET unit_MaBoSS.GPU POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_CURRENT_SOURCE_DIR}/data $<TARGET_FILE_DIR:${PROJECT_NAME}>/data)
 
 enable_testing()
 include(GoogleTest)
-gtest_discover_tests(unit_MaBoSSG)
+gtest_discover_tests(unit_MaBoSS.GPU)
 
-### Target unit_MaBoSSG ###
+### Target unit_MaBoSS.GPU ###
 
 
-### Target MaBoSSG ###
+### Target MaBoSS.GPU ###
 
-add_executable(MaBoSSG src/main.cpp)
-target_link_libraries(MaBoSSG MaBoSSGCore)
+add_executable(MaBoSS.GPU src/main.cpp)
+target_link_libraries(MaBoSS.GPU MaBoSSGCore)
 
-### Target MaBoSSG ###
+### Target MaBoSS.GPU ###
 
-foreach(target MaBoSSG unit_MaBoSSG MaBoSSGCore)
+foreach(target MaBoSS.GPU unit_MaBoSS.GPU MaBoSSGCore)
 	if(MSVC)
 		target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4 /bigobj>)
 	else()

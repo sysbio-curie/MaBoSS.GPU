@@ -104,7 +104,7 @@ int main(int argc, char** argv)
 
 	if (!(args.size() == 2 || (args.size() == 4 && args[0] == "-o")))
 	{
-		std::cout << "Usage: MaBoSSG [-o prefix] bnd_file cfg_file" << std::endl;
+		std::cout << "Usage: MaBoSS.GPU [-o prefix] bnd_file cfg_file" << std::endl;
 		return 1;
 	}
 
