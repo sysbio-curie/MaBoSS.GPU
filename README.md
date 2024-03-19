@@ -1,6 +1,6 @@
-# MaBoSSG
+# MaBoSS.GPU
 
-This repository contains optimized CUDA GPU implementation of the MaBoSS tool. MaBoSSG achieves a speedup of ~1000x and enables analysis of big model sizes (thousands of nodes). Currently, it supports a subset of MaBoSS functionality, mainly states evolution and final/fixed states computation.
+This repository contains optimized CUDA GPU implementation of the MaBoSS tool. MaBoSS.GPU achieves a speedup of ~1000x and enables analysis of big model sizes (thousands of nodes). Currently, it supports a subset of MaBoSS functionality, mainly states evolution and final/fixed states computation.
 
 ## Build requirements
 
@@ -23,12 +23,12 @@ The executable takes 2 mandatory command line arguments, the `.bnd` and the `.cf
 This command simulates the Sizek model and outputs 2 files, `out_probtraj.csv` and `out_fp.csv` similarly as in the original MaBoSS. 
 ```
 # run
-build/MaBoSSG -o out data/sizek.bnd data/sizek.cfg
+build/MaBoSS.GPU -o out data/sizek.bnd data/sizek.cfg
 ```
 
 ## Next steps
 
-There is still plenty of work on MaBoSSG project. The most important ones on our radar are:
+There is still plenty of work on the MaBoSS.GPU project. The most important ones on our radar are:
 - [x] Outputting the results in a reasonable format
 - [ ] Support for mutants analysis 
 - [ ] Python wrapper 
