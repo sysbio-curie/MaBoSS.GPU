@@ -93,6 +93,10 @@ add_custom_target(jit_generated DEPENDS ${JIT_RESULT_FILES})
 add_compile_definitions(CUDA_INC_DIR="${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 add_compile_definitions(CUDA_CC="${CUDA_ARCH_LIST}")
 
+# Thrust has a linker issue when device_ptr being compiled using gcc in one unit and using nvcc in another
+# A function with device_ptr parameter is defined in stats_composite.cpp and required from simulation_runner.cu -> error
+set_source_files_properties("src/statistics/stats_composite.cpp" PROPERTIES LANGUAGE CUDA)
+
 file(GLOB_RECURSE src_files "src/*")
 list(FILTER src_files EXCLUDE REGEX ".*main\\..*")
 list(FILTER src_files EXCLUDE REGEX ".*jit_kernels.*")
