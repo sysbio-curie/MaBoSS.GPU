@@ -73,10 +73,10 @@ stats_composite do_simulation(bool discrete_time, float max_time, float time_tic
 		time_tick, max_time, discrete_time, noninternals_mask, noninternals_count, r.trajectory_len_limit,
 		r.trajectory_batch_limit, compiler.window_average_small));
 
-	// // run
+	// run
 	r.run_simulation(stats_runner, compiler.initialize_random, compiler.initialize_initial_state, compiler.simulate);
 
-	// // finalize
+	// finalize
 	stats_runner.finalize();
 
 	return stats_runner;
